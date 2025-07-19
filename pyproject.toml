@@ -36,7 +36,6 @@ classifiers = [
   , "Natural Language :: Russian"
   , "Intended Audience :: Education"
   , "Intended Audience :: Information Technology"
-  , "Topic :: Office/Business"
 ]
 
 [project.urls]
