@@ -1,0 +1,8 @@
+[flake8]
+exclude =
+    .venv
+per-file-ignores = 
+    # F401: imported but unused
+    # Sometimes imports in __init__
+    # done to make shortcuts
+    __init__.py: F401, F403
