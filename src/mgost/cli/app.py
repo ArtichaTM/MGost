@@ -1,29 +1,34 @@
+from importlib.metadata import version
 from pathlib import Path
-from tomllib import load
 
-from typer import Typer
+import typer
+
+from mgost.mgost import MGost
 
 __all__ = ('app', )
 
 
-app = Typer(name="MGost")
+app = typer.Typer(
+    name="MGost",
+)
 
 
-@app.command()
-def no_command():
-    path_pyproject = (
-        Path(__file__)
-        .parent
-        .parent
-        .parent
-        .parent
-        .joinpath('pyproject.toml')
+@app.command(
+    "version",
+    help="Displays app version"
+)
+def _():
+    typer.echo(f"MGost версии {version('mgost')}")
+
+
+@app.command("build", help="Builds project")
+def _(
+    root_path: Path = typer.Option(  # type: ignore
+        Path('.'),
+        '--root', '-r',
+        help="Путь к папке с проектом"
     )
-    if not path_pyproject.exists():
-        print("MGost api app")
-    with path_pyproject.open('rb') as f:
-        pyproject = load(f)
-        project = pyproject['project']
-        name = project["name"]
-        version = project['version']
-    print(f"{name} version {version}")
+):
+    mgost = MGost(root_path)
+    with mgost:
+        mgost.build()

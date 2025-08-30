@@ -1,4 +1,6 @@
 [flake8]
+ignore =
+    B008
 exclude =
     .venv
 per-file-ignores = 
