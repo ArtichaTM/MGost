@@ -1,15 +1,23 @@
 from pathlib import Path
 
+from mgost.api import APIRequestError, ArtichaAPI
+from mgost.console import Console
 from mgost.settings import MGostInfo
+
+from .sync import sync, sync_file
+from .utils import project_valid
 
 
 class MGost:
     __slots__ = (
         '_root_path',
         '_info',
+        '_api',
+        '_last_line_length'
     )
     _root_path: Path
     _info: MGostInfo | None
+    _api: ArtichaAPI | None
 
     def __init__(
         self,
@@ -17,15 +25,20 @@ class MGost:
     ) -> None:
         self._root_path = root_path
         self._info = None
+        self._api = None
 
     def __enter__[T: MGost](self: T) -> T:
         assert self._info is None
         self._info = MGostInfo.load(self._root_path / '.mgost')
+        self._api = ArtichaAPI(self._info.api_key.api_key)
         return self
 
     def __exit__(self, *_):
         assert self._info is not None
+        assert self._api is not None
         self._info.save(self._root_path / '.mgost')
+        self._api.close()
+        Console.finalize()
 
     @property
     def info(self) -> MGostInfo:
@@ -33,5 +46,101 @@ class MGost:
             " initialized as context manager"
         return self._info
 
-    def build(self) -> None:
-        print('BUILD!')
+    @property
+    def api(self) -> ArtichaAPI:
+        assert self._api is not None, "MGost should be"\
+            " initialized as context manager"
+        return self._api
+
+    def sync_files(self) -> None:
+        return sync(self)
+
+    def sync_file(self, project_id: int, path: Path):
+        assert isinstance(project_id, int)
+        assert isinstance(path, Path)
+        return sync_file(self, project_id, path)
+
+    def render(self) -> None:
+        Console.echo("Начинаю рендер")
+
+    def _pick_project_name(self) -> None:
+        if self.info.settings.project_name is None:
+            name = Console.prompt("Имя проекта")
+            self.info.settings.project_name = name
+        name = self.info.settings.project_name
+        assert isinstance(name, str)
+        Console.echo("Создаю проект...").nl()
+        try:
+            project_id = self.api.create_project(name)
+        except APIRequestError as e:
+            if e.response.status_code != 409:  # Conflict
+                raise
+        else:
+            Console\
+                .edit()\
+                .echo('Проект ')\
+                .echo(name, fg="green")\
+                .echo(' создан!')\
+                .nl()
+            self.info.settings.project_id = project_id
+            return
+
+        # Conflict in project name
+        sync_project = Console\
+            .edit()\
+            .echo('Проект с названием ')\
+            .echo(name, fg="green")\
+            .echo(' ')\
+            .echo('уже существует', bold=True)\
+            .echo('.')\
+            .nl()\
+            .prompt('Синхронизировать проект с ним?')
+        if not sync_project:
+            self.info.settings.project_name = None
+            return
+        projects = self.api.projects()
+        assert projects
+        for project in projects:
+            if project.name == name:
+                break
+        else:
+            Console\
+                .echo("Облако сообщает о конфликте имён, ")\
+                .echo('однако проекта с таким именем ')\
+                .echo('не существует', fg='red')\
+                .echo('.')\
+                .nl()
+            return
+        self.info.settings.project_id = project.id
+
+    def init(self) -> None:
+        if project_valid(self):
+            Console\
+                .echo("Проект уже создан и готов к работе.")\
+                .nl()\
+                .echo("Используйте ")\
+                .echo("mgost render", fg="cyan")\
+                .echo(" для рендера проекта")\
+                .nl()
+            return
+        Console\
+            .edit()\
+            .echo('Начинаю создание проекта в папке "')\
+            .echo(str(self._root_path.resolve().name), fg="green")\
+            .echo('"')\
+            .nl()
+        md_path = self._root_path / 'main.md'
+        if md_path.exists():
+            answer = Console\
+                .echo("Файл ")\
+                .echo(str(md_path), fg="green")\
+                .echo(" уже существует. ")\
+                .confirm("Заменить его?")
+            if answer:
+                file_bytes = self.api.download_example()
+                with md_path.open('wb') as f:
+                    f.write(file_bytes)
+        while True:
+            self._pick_project_name()
+            if self.info.settings.project_name:
+                break

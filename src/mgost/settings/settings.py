@@ -5,8 +5,9 @@ from datetime import datetime
 from os import getenv
 from pathlib import Path
 
-import typer
 from dotenv import dotenv_values
+
+from mgost.console import Console
 
 __all__ = (
     'MGostInfo',
@@ -58,20 +59,25 @@ class FileInfo(DictBasedClass):
 class Settings(DictBasedClass):
     __slots__ = (
         'project_id',
+        'project_name',
     )
     project_id: int | None
+    project_name: str | None
 
     def __init__(
         self,
-        project_id: int | None = None
+        project_id: int | None = None,
+        project_name: str | None = None
     ) -> None:
         super().__init__()
         self.project_id = project_id
+        self.project_name = project_name
 
     def to_dict(self) -> dict:
         output = dict()
         if self.project_id is not None:
             output['project_id'] = self.project_id
+            output['project_name'] = self.project_name
         return output
 
 
@@ -104,12 +110,18 @@ class ApiKeyHolder:
                 self.source = API_KEY_SOURCE.DOTENV
                 return dotenv_token
 
-        typer.echo("API ключ не найден ни в переменных среды, ни в .env.")
-        typer.echo(
-            "Введите код вручную или внесите его в "
-            "вышеперечисленные источники"
-        )
-        value = typer.prompt(self.API_TOKEN_KEY, prompt_suffix='=')
+        Console\
+            .echo("API ключ ")\
+            .echo("не найден", fg="red")\
+            .echo(" ни в переменных среды, ни в .env.")\
+            .nl()
+        Console\
+            .echo(
+                "Введите код вручную или внесите его в "
+                "вышеперечисленные источники"
+            )\
+            .nl()
+        value = Console.prompt(self.API_TOKEN_KEY, prompt_suffix='=')
         self.source = API_KEY_SOURCE.PROMPT
         return value
 

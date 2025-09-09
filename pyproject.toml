@@ -21,6 +21,7 @@ dependencies = [
     "dotenv>=0.9.9",
     "httpx>=0.28.1",
     "pre-commit>=4.2.0",
+    "pydantic>=2.11.7",
     "typer>=0.16.1",
 ]
 
@@ -44,3 +45,6 @@ classifiers = [
 homepage = "https://articha.ru/mgost/"
 # repository = ""
 # documentation = ""
+
+[tool.isort]
+multi_line_output = 5
