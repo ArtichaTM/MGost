@@ -89,6 +89,12 @@ def sync_file(
     project_id: int,
     path: Path
 ) -> Action:
+    """Calculating required action to sync files
+        cloud<->local by path
+    :raises FileNotFoundError: Exception raised when file can't be found
+        nor in cloud nor locally
+    :return: Returns action required to sync passed path
+    """
     assert isinstance(project_id, int)
     assert isinstance(path, Path)
     project_files = mgost.api.project_files(project_id)
@@ -138,8 +144,15 @@ def _sync_main_md(
     try:
         action = sync_file(mgost, project_id, path)
     except FileNotFoundError:
-        # TODO: What to do if file not found
-        return DoNothing()
+        # Console\
+        #     .echo("Главный файл .md ")\
+        #     .echo("не обнаружен", fg='red')\
+        #     .echo("ни в ")\
+        #     .echo('облаке', fg='cyan')\
+        #     .echo(', ни ')\
+        #     .echo('локально', fg='green')\
+        #     .echo('.')
+        raise
     return action
 
 
