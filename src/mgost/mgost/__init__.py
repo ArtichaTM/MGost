@@ -1,1 +1,2 @@
-from .mgost import MGost, SyncError
+from .mgost import MGost
+from .sync import SyncError

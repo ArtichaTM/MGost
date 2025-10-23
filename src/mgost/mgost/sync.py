@@ -1,11 +1,14 @@
 import enum
+from concurrent.futures import Future, ThreadPoolExecutor, as_completed
 from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from rich.progress import BarColumn, MofNCompleteColumn, Progress, TextColumn
+
 from mgost.api.actions import (
     Action, DoNothing, DownloadFileAction, FileMovedLocally,
-    MGostCompletableAction, UploadFileAction
+    MGostCompletableAction, PathAction, UploadFileAction
 )
 from mgost.console import Console
 
@@ -148,28 +151,67 @@ def sync(mgost: 'MGost') -> None:
     assert project_id is not None
     assert mgost.api.is_project_available(project_id)
 
-    # pb = progressbar(length=3)
     action = _sync_main_md(mgost, project_id)
     while action is not None:
         Console\
             .edit()\
-            .echo(
-                "Синхронизация главного md файла"
-            )\
+            .echo("Синхронизация главного md файла")\
             .nl()
-        if isinstance(action, MGostCompletableAction):
-            action = action.complete_mgost(mgost)
-        else:
-            raise RuntimeError(f"How to complete {action}?")
+        while isinstance(action, MGostCompletableAction):
+            try:
+                action = action.complete_mgost(mgost)
+            except Exception as e:
+                Console\
+                    .echo(f'Ошибка {e!r} во время получения Markdown файла')\
+                    .nl()
+                return
+        assert action is None, action
 
     Console\
+        .edit()\
         .echo(
             "Получение списка необходимых"
             " файлов для рендера проекта"
         )\
-        .nl()
+        .nl()\
+        .edit()
 
-    # print(action)
-    # project = mgost.api.project(project_id)
-    # cloud_files = mgost.api.project_files(project_id)
-    # local_files = mgost.info.files
+    local_files = mgost.info.files
+    cloud_files = mgost.api.project_files(project_id)
+    all_files = set(local_files).union(cloud_files)
+
+    actions: list[Action] = []
+    for name in all_files:
+        actions.append(sync_file(mgost, project_id, Path(name)))
+
+    futures: dict[Future, Action] = dict()
+    exceptions: list[tuple[Action, Future]] = []
+    with ThreadPoolExecutor(max_workers=4) as executor:
+        for action in actions:
+            if isinstance(action, MGostCompletableAction):
+                futures[executor.submit(action.complete_mgost, mgost)] = action
+            else:
+                raise RuntimeError(f"How to complete {action}?")
+
+        with Progress(
+            TextColumn('Синхронизация'),
+            BarColumn(),
+            MofNCompleteColumn(),
+            auto_refresh=False
+        ) as progress:
+            for future in progress.track(
+                as_completed(futures),
+                total=len(futures)
+            ):
+                assert isinstance(action, Action)
+                try:
+                    future.result()
+                except Exception:
+                    action = futures[future]
+                    exceptions.append((action, future))
+    for action, exception in exceptions:
+        if isinstance(action, PathAction):
+            Console\
+                .echo(f"{action.path} ", fg='blue')\
+                .echo(f"- ошибка синхронизации {exception}")\
+                .echo(f"{exception}", fg="red")

@@ -1,9 +1,10 @@
+from collections.abc import Iterable
 from datetime import datetime
-from functools import cache
 from json import JSONDecodeError
 from os import utime
 from pathlib import Path
-from typing import Literal
+from time import sleep
+from typing import Generator, Literal, NamedTuple
 
 from httpx import Client, QueryParams, Response
 from httpx._types import RequestFiles
@@ -19,6 +20,30 @@ class WrongToken(Exception):
 
 class ClientClosed(Exception):
     pass
+
+
+class ProgressInfo(NamedTuple):
+    num_bytes_downloaded: float
+    chunk: bytes
+
+
+class StreamingDownload(Iterable):
+    __slots__ = ('_resp', 'total')
+    _resp: Response
+    total: int
+
+    def __init__(self, response: Response) -> None:
+        super().__init__()
+        assert isinstance(response, Response)
+        self._resp = response
+        self.total = int(response.headers["Content-Length"])
+
+    def __iter__(self) -> Generator[ProgressInfo]:
+        for chunk in self._resp.iter_bytes():
+            yield ProgressInfo(
+                self._resp.num_bytes_downloaded,
+                chunk
+            )
 
 
 class APIRequestError(Exception):
@@ -44,11 +69,18 @@ class APIRequestError(Exception):
 class ArtichaAPI:
     __slots__ = (
         '_token',
-        '_client'
+        '_client',
+        '_cache',
     )
     _host: str = 'https://articha.tplinkdns.com/api'
     _token: str
     _client: Client | None
+    _cache: dict[tuple[
+        str,
+        str,
+        QueryParams | dict | None,
+        RequestFiles | dict | None
+    ], Response]
 
     def __init__(
         self,
@@ -67,6 +99,7 @@ class ArtichaAPI:
             },
             base_url=base_url
         )
+        self._cache = dict()
 
     def _method(
         self,
@@ -77,6 +110,9 @@ class ArtichaAPI:
     ) -> Response:
         assert url.startswith('/')
         assert isinstance(url, str)
+        key = (method, url, params, files)
+        if (value := self._cache.get(key)) is not None:
+            return value
         if params is None:
             params = QueryParams()
         assert isinstance(params, (dict, QueryParams))
@@ -87,6 +123,17 @@ class ArtichaAPI:
             params=params,
             files=files
         )
+        counter = 0
+        while resp.status_code == 429:
+            sleep(5)
+            resp = self._client.request(
+                method, url,
+                params=params,
+                files=files
+            )
+            counter += 1
+            if counter > 2:
+                return resp
         try:
             info = resp.json()
             if 'detail' in info:
@@ -95,7 +142,29 @@ class ArtichaAPI:
                 )
         except JSONDecodeError:
             pass
+        self._cache[key] = resp
         return resp
+
+    def _streaming_download(
+        self,
+        method: str,
+        url: str,
+        params: QueryParams | dict | None = None,
+        files: RequestFiles | dict | None = None
+    ) -> StreamingDownload:
+        assert url.startswith('/')
+        assert isinstance(url, str)
+        if params is None:
+            params = QueryParams()
+        assert isinstance(params, (dict, QueryParams))
+        if self._client is None:
+            raise ClientClosed(f"{self.__qualname__} is closed")
+        with self._client.stream(
+            method, url,
+            params=params,
+            files=files
+        ) as resp:
+            return StreamingDownload(resp)
 
     def _get(
         self, url: str,
@@ -124,6 +193,9 @@ class ArtichaAPI:
         files: RequestFiles | dict | None = None,
     ) -> Response:
         return self._method('PATCH', url, params, files)
+
+    def _invalidate_cache(self) -> None:
+        self._cache.clear()
 
     def validate_token(self) -> str | schemas.TokenInfo:
         resp = self._get('/me')
@@ -155,7 +227,6 @@ class ArtichaAPI:
             }
         ).read()
 
-    @cache
     def is_project_available(self, project_id: int) -> bool:
         assert isinstance(project_id, int)
         try:
@@ -173,12 +244,13 @@ class ArtichaAPI:
             ).json()
         ]
 
-    @cache
     def project(self, project_id: int) -> schemas.ProjectExtended:
         assert isinstance(project_id, int)
         assert self.is_project_available(project_id)
         return schemas.ProjectExtended(
-            **self._get(f'/mgost/project/{project_id}').json()
+            **self._get(
+                f'/mgost/project/{project_id}'
+            ).json(),
         )
 
     def project_files_requirements(
@@ -190,7 +262,6 @@ class ArtichaAPI:
             ).json().items()
         }
 
-    @cache
     def project_files(
         self, project_id: int
     ) -> dict[Path, schemas.ProjectFile]:
@@ -207,6 +278,7 @@ class ArtichaAPI:
             '/mgost/project',
             {'project_name': name}
         ).json()
+        self._invalidate_cache()
         return output['id']
 
     def upload(
@@ -239,6 +311,7 @@ class ArtichaAPI:
                     f'/mgost/project/{project_id}/files',
                     params=params, files=files
                 )
+        self._invalidate_cache()
 
     def download(
         self,
@@ -246,6 +319,9 @@ class ArtichaAPI:
         path: Path,
         overwrite_ok: bool = True
     ) -> None:
+        assert isinstance(project_id, int)
+        assert isinstance(path, Path)
+        assert isinstance(overwrite_ok, bool)
         if path.exists() and not overwrite_ok:
             raise FileExistsError
         with open(path, 'wb') as file:
@@ -253,6 +329,32 @@ class ArtichaAPI:
                 f'/mgost/project/{project_id}/files/{path}',
             )
             file.write(resp.content)
+        access_time = path.lstat().st_atime
+        project_file = self.project_files(project_id)[path]
+        utime(path, (access_time, project_file.modified.timestamp()))
+
+    def download_with_progress(
+        self,
+        project_id: int,
+        path: Path,
+        overwrite_ok: bool = True
+    ):
+        assert isinstance(project_id, int)
+        assert isinstance(path, Path)
+        assert isinstance(overwrite_ok, bool)
+        if path.exists() and not overwrite_ok:
+            raise FileExistsError
+        # with rich.progress.Progress(
+        #     "[progress.percentage]{task.percentage:>3.0f}%",
+        #     rich.progress.BarColumn(),
+        #     rich.progress.DownloadColumn(),
+        #     rich.progress.TransferSpeedColumn(),
+        # ) as progress:
+        #     download_task = progress.add_task("Download", total=total)
+        #     for chunk_info in self._streaming_download(
+        #         'GET', f'/mgost/project/{project_id}/files/{path}',
+        #     ):
+        #         pass
         access_time = path.lstat().st_atime
         project_file = self.project_files(project_id)[path]
         utime(path, (access_time, project_file.modified.timestamp()))
@@ -267,12 +369,22 @@ class ArtichaAPI:
             f'/mgost/project/{project_id}/files/{old_path}',
             {'target': new_path}
         )
+        self._invalidate_cache()
         return schemas.Message(**resp.json()).is_ok()
 
-    def invalidate_cache(self) -> None:
-        for attr in self.__dict__.values():
-            if hasattr(attr, 'cache_clear'):
-                attr.cache_clear()
+    def render(
+        self,
+        project_id: int
+    ) -> schemas.mgost.BuildResult:
+        """Requests api to render project
+        :raises HTTPStatusError: Raised when got non-success code from the api
+        """
+        resp = self._get(
+            f'/mgost/project/{project_id}/render'
+        )
+        resp.raise_for_status()
+        self._invalidate_cache()
+        return schemas.mgost.BuildResult(**resp.json())
 
     def close(self) -> None:
         if self._client is None:

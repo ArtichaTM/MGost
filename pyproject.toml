@@ -9,7 +9,7 @@ packages = [
 
 [project]
 name = "MGost"
-version = "0.0.3"
+version = "0.1"
 authors = [
   {name="Геворкян Артём", email="tima-1324@mail.ru"}
 ]
@@ -46,5 +46,13 @@ homepage = "https://articha.ru/mgost/"
 # repository = ""
 # documentation = ""
 
+[project.scripts]
+mgost = "mgost:main"
+
 [tool.isort]
 multi_line_output = 5
+
+[tool.uv.workspace]
+members = [
+    "test",
+]
