@@ -1,4 +1,5 @@
 from datetime import datetime
+from logging import ERROR, INFO
 from pathlib import Path
 from typing import Optional
 
@@ -65,3 +66,21 @@ class FileRename(BaseModel):
         ...,
         description="File target path"
     )
+
+
+class LogEntry(BaseModel):
+    level: int = Field(
+        description=f"Level of log from {INFO} to {ERROR}"
+    )
+    message: str
+
+
+class BuildResult(BaseModel):
+    max_log_level: int = Field(
+        description=(
+            "Max level of logs during render."
+            f"By default minimum is {INFO} and maximum is {ERROR}"
+        )
+    )
+    logs: list[LogEntry]
+    finished: bool

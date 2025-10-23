@@ -1,6 +1,10 @@
+from logging import ERROR, WARNING
 from pathlib import Path
 
+from httpx import HTTPStatusError
+
 from mgost.api import APIRequestError, ArtichaAPI
+from mgost.api.schemas.mgost import BuildResult
 from mgost.console import Console
 from mgost.settings import MGostInfo
 
@@ -61,7 +65,61 @@ class MGost:
         return sync_file(self, project_id, path)
 
     def render(self) -> None:
-        Console.echo("Начинаю рендер")
+        Console.echo("Начинаю рендер").nl()
+        assert self.info.settings.project_id is not None
+        try:
+            result = self.api.render(self.info.settings.project_id)
+        except HTTPStatusError as e:
+            Console\
+                .echo('Не смог выполнить рендер в виду ошибки №')\
+                .echo(str(e.response.status_code), fg='red')\
+                .nl()
+            return
+        assert isinstance(result, BuildResult)
+        Console.echo('Рендер ')
+        ended = 'завершён' if result.finished else 'не завершён'
+        if result.max_log_level < WARNING:
+            Console\
+                .echo('успешно', fg='green')\
+                .echo(f' {ended}')
+        elif result.max_log_level < ERROR:
+            Console\
+                .echo(f'{ended} ')\
+                .echo('с предупреждениями', fg='yellow')
+        else:
+            Console\
+                .echo(f'{ended} ')\
+                .echo('с ошибками', fg='red')
+        if not result.logs:
+            Console.echo(' без сообщений')
+        Console.nl()
+        for entry in result.logs:
+            if entry.level < WARNING:
+                Console.echo('ИНФО'.rjust(14), fg='white')
+            elif entry.level < ERROR:
+                Console.echo('ПРЕДУПРЕЖДЕНИЕ'.rjust(14), fg='yellow')
+            else:
+                Console.echo('ОШИБКА'.rjust(14), fg='red')
+            Console\
+                .echo(': ')\
+                .echo(entry.message)\
+                .nl()
+        if result.finished:
+            # project = self.api.project(
+            #     self.info.settings.project_id
+            # )
+            Console\
+                .echo('Скачивание документа')
+            try:
+                # for chunk_info in self.api.streaming_download(
+                #     ''
+                # )
+                pass
+            except KeyboardInterrupt:
+                Console\
+                    .nl()\
+                    .echo('Операция прервана пользователем')\
+                    .nl()
 
     def _pick_project_name(self) -> None:
         if self.info.settings.project_name is None:
