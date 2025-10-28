@@ -51,8 +51,3 @@ mgost = "mgost:main"
 
 [tool.isort]
 multi_line_output = 5
-
-[tool.uv.workspace]
-members = [
-    "test",
-]
