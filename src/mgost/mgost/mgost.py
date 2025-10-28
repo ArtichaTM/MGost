@@ -105,16 +105,15 @@ class MGost:
                 .echo(entry.message)\
                 .nl()
         if result.finished:
-            # project = self.api.project(
-            #     self.info.settings.project_id
-            # )
+            project = self.api.project(
+                self.info.settings.project_id
+            )
             Console\
                 .echo('Скачивание документа')
             try:
-                # for chunk_info in self.api.streaming_download(
-                #     ''
-                # )
-                pass
+                self.api.download_with_progress(
+                    project.id, project.path_to_docx
+                )
             except KeyboardInterrupt:
                 Console\
                     .nl()\

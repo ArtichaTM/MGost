@@ -8,6 +8,9 @@ from typing import Generator, Literal, NamedTuple
 
 from httpx import Client, QueryParams, Response
 from httpx._types import RequestFiles
+from rich.progress import (
+    BarColumn, DownloadColumn, Progress, TransferSpeedColumn
+)
 
 from . import schemas
 
@@ -30,13 +33,14 @@ class ProgressInfo(NamedTuple):
 class StreamingDownload(Iterable):
     __slots__ = ('_resp', 'total')
     _resp: Response
-    total: int
+    total: int | None
 
     def __init__(self, response: Response) -> None:
         super().__init__()
         assert isinstance(response, Response)
         self._resp = response
-        self.total = int(response.headers["Content-Length"])
+        total = response.headers.get('Content-Length', None)
+        self.total = int(total) if total else None
 
     def __iter__(self) -> Generator[ProgressInfo]:
         for chunk in self._resp.iter_bytes():
@@ -344,17 +348,24 @@ class ArtichaAPI:
         assert isinstance(overwrite_ok, bool)
         if path.exists() and not overwrite_ok:
             raise FileExistsError
-        # with rich.progress.Progress(
-        #     "[progress.percentage]{task.percentage:>3.0f}%",
-        #     rich.progress.BarColumn(),
-        #     rich.progress.DownloadColumn(),
-        #     rich.progress.TransferSpeedColumn(),
-        # ) as progress:
-        #     download_task = progress.add_task("Download", total=total)
-        #     for chunk_info in self._streaming_download(
-        #         'GET', f'/mgost/project/{project_id}/files/{path}',
-        #     ):
-        #         pass
+        with Progress(
+            "[progress.percentage]{task.percentage:>3.0f}%",
+            BarColumn(),
+            DownloadColumn(),
+            TransferSpeedColumn(),
+        ) as progress:
+            streaming_download = self._streaming_download(
+                'GET', f'/mgost/project/{project_id}/files/{path}',
+            )
+            download_task = progress.add_task(
+                str(path),
+                total=streaming_download.total
+            )
+            for chunk_info in streaming_download:
+                progress.update(
+                    download_task,
+                    completed=chunk_info.num_bytes_downloaded
+                )
         access_time = path.lstat().st_atime
         project_file = self.project_files(project_id)[path]
         utime(path, (access_time, project_file.modified.timestamp()))
