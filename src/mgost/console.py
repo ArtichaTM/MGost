@@ -1,6 +1,7 @@
 import typing as t
 
 import typer
+from click.types import Choice
 
 __all__ = ('Console',)
 
@@ -101,6 +102,7 @@ class _Console():
         show_default: bool = True,
         err: bool = False,
         show_choices: bool = True,
+        choices: tuple[str] | tuple[int] | None = None,
     ) -> t.Any:
         with self._VariablesApply():
             value = typer.prompt(
@@ -108,7 +110,7 @@ class _Console():
                 default=default,
                 hide_input=hide_input,
                 confirmation_prompt=confirmation_prompt,
-                type=type,
+                type=Choice(choices) if choices else type,
                 value_proc=value_proc,
                 prompt_suffix=prompt_suffix,
                 show_default=show_default,
