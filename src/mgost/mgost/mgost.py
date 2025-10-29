@@ -111,7 +111,7 @@ class MGost:
             Console\
                 .echo('Скачивание документа')
             try:
-                self.api.download_with_progress(
+                self.api.download(
                     project.id, project.path_to_docx
                 )
             except KeyboardInterrupt:
@@ -180,6 +180,36 @@ class MGost:
                 .echo(" для рендера проекта")\
                 .nl()
             return
+        projects = self.api.projects()
+        mapping = {i: proj for i, proj in enumerate(projects, 1)}
+        Console\
+            .nl()\
+            .echo('Создать новый проект или ')\
+            .echo('синхронизировать', fg='blue')\
+            .echo(' существующий?')\
+            .nl()
+        Console\
+            .echo('0. ', fg='blue')\
+            .echo('Создать новый проект')\
+            .nl()
+        for index, project in mapping.items():
+            Console\
+                .echo(f'{index}. ', fg='blue')\
+                .echo(f'"{project.name}"')\
+                .nl()
+        choices = (0, *mapping.keys())
+        assert isinstance(choices, tuple)
+        assert all((isinstance(i, int) for i in choices))
+        value = Console.prompt(
+            'Действие',
+            choices=choices,  # type: ignore
+            show_choices=False
+        )
+        if value != 0:
+            project = mapping[value]
+            self.info.settings.project_id = project.id
+            self.info.settings.project_name = project.name
+            return
         Console\
             .edit()\
             .echo('Начинаю создание проекта в папке "')\
@@ -201,3 +231,11 @@ class MGost:
             self._pick_project_name()
             if self.info.settings.project_name:
                 break
+        Console\
+            .echo('Проект "')\
+            .echo(f'{self.info.settings.project_name}', fg='green')\
+            .echo('" инициализирован.')\
+            .nl()\
+            .echo('Используйте ')\
+            .echo('mgost sync', fg='blue')\
+            .echo('для синхронизации проекта')
