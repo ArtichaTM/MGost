@@ -115,8 +115,11 @@ class ArtichaAPI:
         assert url.startswith('/')
         assert isinstance(url, str)
         key = (method, url, params, files)
-        if (value := self._cache.get(key)) is not None:
-            return value
+        try:
+            if (value := self._cache.get(key)) is not None:
+                return value
+        except TypeError:
+            key = None
         if params is None:
             params = QueryParams()
         assert isinstance(params, (dict, QueryParams))
@@ -138,15 +141,17 @@ class ArtichaAPI:
             counter += 1
             if counter > 2:
                 return resp
+        resp.raise_for_status()
         try:
             info = resp.json()
             if 'detail' in info:
                 raise APIRequestError(
                     resp, info['detail']
                 )
-        except JSONDecodeError:
+        except JSONDecodeError, UnicodeDecodeError:
             pass
-        self._cache[key] = resp
+        if key is not None:
+            self._cache[key] = resp
         return resp
 
     def _streaming_download(
