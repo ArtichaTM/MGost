@@ -55,7 +55,17 @@ def _compare_file_to(
 ) -> bool:
     stat = path.lstat()
     if filename is not None and path.name == filename:
-        return True
+        # If it some variable suffix, return True without compare
+        # If not, compare suffix
+        if path.suffix not in {
+            'md', 'docx', 'xlsx'
+        }:
+            return True
+        extensions = (
+            path.suffix,
+            Path(filename).suffix
+        )
+        return extensions[0] == extensions[1]
     if birth_time is not None and stat.st_birthtime == birth_time:
         return True
     if size is not None and stat.st_size == size:
@@ -177,7 +187,7 @@ def sync(mgost: 'MGost') -> None:
                 Console\
                     .echo(f'Ошибка {e!r} во время получения Markdown файла')\
                     .nl()
-                return
+                raise e
         assert action is None, action
 
     Console\
