@@ -148,7 +148,7 @@ class ArtichaAPI:
                 raise APIRequestError(
                     resp, info['detail']
                 )
-        except JSONDecodeError, UnicodeDecodeError:
+        except (JSONDecodeError, UnicodeDecodeError):
             pass
         if key is not None:
             self._cache[key] = resp
