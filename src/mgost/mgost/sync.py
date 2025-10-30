@@ -80,8 +80,9 @@ def _search_file(
     size: int | None = None
 ) -> Path | None:
     assert isinstance(root_path, Path)
-    assert isinstance(birth_time, datetime)
-    assert isinstance(size, int)
+    assert filename is None or isinstance(filename, str)
+    assert birth_time is None or isinstance(birth_time, datetime)
+    assert size is None or isinstance(size, int)
     for directory, _, files in root_path.walk():
         if directory.name.startswith('.'):
             continue

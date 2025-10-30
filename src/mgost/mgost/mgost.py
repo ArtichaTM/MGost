@@ -216,21 +216,29 @@ class MGost:
             .echo(str(self._root_path.resolve().name), fg="green")\
             .echo('"')\
             .nl()
+        while True:
+            self._pick_project_name()
+            if self.info.settings.project_name:
+                break
         md_path = self._root_path / 'main.md'
+        replace_md = True
         if md_path.exists():
             answer = Console\
                 .echo("Файл ")\
                 .echo(str(md_path), fg="green")\
                 .echo(" уже существует. ")\
                 .confirm("Заменить его?")
-            if answer:
-                file_bytes = self.api.download_example()
-                with md_path.open('wb') as f:
-                    f.write(file_bytes)
-        while True:
-            self._pick_project_name()
-            if self.info.settings.project_name:
-                break
+            replace_md = answer
+
+        if replace_md:
+            example = self.api.download_example()
+            md_path.write_bytes(example)
+            assert self.info.settings.project_id is not None
+            self.api.upload(
+                self.info.settings.project_id,
+                md_path, overwrite=False
+            )
+
         Console\
             .echo('Проект "')\
             .echo(f'{self.info.settings.project_name}', fg='green')\
