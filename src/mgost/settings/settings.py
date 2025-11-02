@@ -1,7 +1,7 @@
 import enum
 import json
 from abc import ABC, abstractmethod
-from os import getenv
+from os import environ, getenv
 from pathlib import Path
 
 from dotenv import dotenv_values
@@ -69,20 +69,22 @@ class ApiKeyHolder:
     def __init__(self, path_dotenv: Path) -> None:
         assert isinstance(path_dotenv, Path)
         self.path_dotenv = path_dotenv
-        self.api_key = self._load_api_key()
+        self.load_api_key()
 
-    def _load_api_key(self) -> str:
+    def load_api_key(self) -> None:
         env_token = getenv(self.API_TOKEN_KEY)
         if env_token is not None:
             self.source = API_KEY_SOURCE.ENV
-            return env_token
+            self.api_key = env_token
+            return
 
         if self.path_dotenv.exists():
             dotenv = dotenv_values(self.path_dotenv)
             dotenv_token = dotenv.get(self.API_TOKEN_KEY)
             if dotenv_token is not None:
                 self.source = API_KEY_SOURCE.DOTENV
-                return dotenv_token
+                self.api_key = dotenv_token
+                return
 
         Console\
             .echo("API ключ ")\
@@ -97,7 +99,22 @@ class ApiKeyHolder:
             .nl()
         value = Console.prompt(self.API_TOKEN_KEY, prompt_suffix='=')
         self.source = API_KEY_SOURCE.PROMPT
-        return value
+        self.api_key = value
+
+    def remove_current_key(self) -> None:
+        match self.source:
+            case API_KEY_SOURCE.PROMPT:
+                pass
+            case API_KEY_SOURCE.DOTENV:
+                lines = self.path_dotenv.read_text().split('\n')
+                self.path_dotenv.write_text(
+                    '\n'.join(i for i in lines if not i.startswith(
+                        self.API_TOKEN_KEY
+                    ))
+                )
+                environ.pop(self.API_TOKEN_KEY, default=None)
+            case API_KEY_SOURCE.ENV:
+                del environ[self.API_TOKEN_KEY]
 
     def save(self) -> None:
         if self.source is not API_KEY_SOURCE.PROMPT:

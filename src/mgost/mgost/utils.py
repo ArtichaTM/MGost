@@ -17,7 +17,18 @@ async def token_valid(mgost: 'MGost') -> bool:
             .echo('Токен некорректен: ', fg="red")\
             .echo(token_info, fg="bright_red")\
             .nl()
-        return False
+        api_key_cl = mgost.info.api_key
+        key = api_key_cl.api_key
+        api_key_cl.remove_current_key()
+        try:
+            api_key_cl.load_api_key()
+        except Exception:
+            Console\
+                .echo("Старый токен возвращён")\
+                .nl()
+            api_key_cl.api_key = key
+            raise
+        return await token_valid(mgost)
     return True
 
 

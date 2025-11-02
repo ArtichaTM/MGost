@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Awaitable, Literal
 
 from aiopath import AsyncPath
-from httpx import AsyncClient, QueryParams, Response
+from httpx import AsyncClient, HTTPStatusError, QueryParams, Response
 from httpx._types import RequestFiles
 from rich.progress import Progress
 
@@ -81,14 +81,16 @@ class ArtichaAPI:
         self._cache.clear()
 
     async def validate_token(self) -> str | schemas.TokenInfo:
-        resp = await self.method(APIRequestInfo(
-            'GET', '/me'
-        ))
-        info = resp.json()
-        if resp.status_code != 200:
+        try:
+            resp = await self.method(APIRequestInfo(
+                'GET', '/me'
+            ))
+            return schemas.TokenInfo(**resp.json())
+        except HTTPStatusError as e:
+            resp = e.response
+            info = resp.json()
             assert 'detail' in info
             return info['detail']
-        return schemas.TokenInfo(**info)
 
     async def me(self) -> schemas.TokenInfo:
         return schemas.TokenInfo(**(await self.method(APIRequestInfo(
