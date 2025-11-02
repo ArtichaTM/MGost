@@ -42,10 +42,8 @@ classifiers = [
 ]
 
 [project.urls]
-# Project-related URLs (e.g., homepage, documentation, repository).
 homepage = "https://articha.ru/mgost/"
-# repository = ""
-# documentation = ""
+repository = "https://github.com/ArtichaTM/MGost"
 
 [project.scripts]
 mgost = "mgost:main"
