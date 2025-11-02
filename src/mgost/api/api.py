@@ -10,7 +10,7 @@ from rich.progress import Progress
 
 from . import schemas
 from .caller import api_request
-from .exceptions import APIRequestError, ClientClosed
+from .exceptions import ClientClosed
 from .request import APIRequestInfo
 
 CURRENT_TIMEZONE = datetime.now().astimezone().tzinfo
@@ -128,7 +128,7 @@ class ArtichaAPI:
                 'GET', f'/mgost/project/{project_id}'
             ))
             return response.status_code == 200
-        except APIRequestError:
+        except HTTPStatusError:
             return False
 
     async def projects(self) -> list[schemas.Project]:
@@ -211,7 +211,7 @@ class ArtichaAPI:
             params['path'] = path
             await self.method(APIRequestInfo(
                 'PUT',
-                f'/mgost/project/{project_id}/files',
+                f'/mgost/project/{project_id}/files/{path}',
                 params=params,
                 request_file_path=AsyncPath(path),
                 progress=progress

@@ -39,18 +39,24 @@ async def _method_normal(
     cache: dict,
     request: APIRequestInfo
 ) -> Response:
-    key = (request.method, request.url, request.params, request.files)
+    key = (request.method, request.url, request.params)
     try:
         if (value := cache.get(key)) is not None:
             return value
     except TypeError:
         key = None
+    kwargs = {
+        'method': request.method,
+        'url': request.url,
+        'params': request.params
+    }
+    if request.request_file_path is not None:
+        kwargs['data'] = _file_chunker(
+            request.request_file_path
+        )
     func = partial(
         client.request,
-        method=request.method,
-        url=request.url,
-        params=request.params,
-        files=request.files
+        **kwargs
     )
     resp = await func()
     counter = 0
@@ -78,7 +84,7 @@ def _method_progress(
     client: AsyncClient,
     request: APIRequestInfo
 ) -> Awaitable[Response]:
-    if request.files:
+    if request.request_file_path:
         return _method_progress_upload(client, request)
     return _method_progress_download(client, request)
 
@@ -98,7 +104,6 @@ async def _method_progress_upload(
     request.progress.add_task(
         description=f"↑ {request.request_file_path}"
     )
-    request.request_file_path.lstat().st_size
     response = await client.request(
         request.method, request.url,
         content=_file_chunker(
