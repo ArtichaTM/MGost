@@ -9,7 +9,7 @@ packages = [
 
 [project]
 name = "MGost"
-version = "0.2.1"
+version = "0.2.2"
 authors = [
   {name="Геворкян Артём", email="tima-1324@mail.ru"}
 ]
@@ -17,7 +17,8 @@ description = "MGost converter console app based on ArtichaAPI"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
-    "aiofiles>=24.1.0",
+    "aiofiles>=25.1.0",
+    "aiopath>=0.7.7",
     "dotenv>=0.9.9",
     "httpx>=0.28.1",
     "pre-commit>=4.2.0",

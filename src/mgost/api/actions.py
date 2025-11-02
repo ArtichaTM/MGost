@@ -3,6 +3,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from rich.progress import Progress
+
 if TYPE_CHECKING:
     from mgost.mgost import MGost
 
@@ -17,17 +19,26 @@ class Action(ABC):
 @dataclass(frozen=True, slots=True)
 class MGostCompletableAction(Action, ABC):
     @abstractmethod
-    def complete_mgost(self, mgost: 'MGost') -> Action | None:
+    async def complete_mgost(
+        self, mgost: 'MGost',
+        progress: Progress | None = None
+    ) -> Action | None:
         raise NotImplementedError()
 
 
 @dataclass(frozen=True, slots=True)
 class APICompletableAction(MGostCompletableAction, ABC):
-    def complete_mgost(self, mgost: 'MGost') -> Action | None:
-        return self.complete_api(mgost.api)
+    async def complete_mgost(
+        self, mgost, progress=None
+    ) -> Action | None:
+        return await self.complete_api(mgost.api, progress)
 
     @abstractmethod
-    def complete_api(self, api: 'ArtichaAPI') -> Action | None:
+    async def complete_api(
+        self,
+        api: 'ArtichaAPI',
+        progress: Progress | None = None
+    ) -> Action | None:
         raise NotImplementedError()
 
 
@@ -39,7 +50,7 @@ class PathAction(Action, ABC):
 
 @dataclass(frozen=True, slots=True)
 class DoNothing(APICompletableAction):
-    def complete_api(self, api):
+    async def complete_api(self, api, progress=None):
         pass
 
 
@@ -47,11 +58,12 @@ class DoNothing(APICompletableAction):
 class UploadFileAction(PathAction, APICompletableAction):
     overwrite: bool
 
-    def complete_api(self, api):
-        api.upload(
+    async def complete_api(self, api, progress=None):
+        await api.upload(
             project_id=self.project_id,
             path=self.path,
-            overwrite=self.overwrite
+            overwrite=self.overwrite,
+            progress=progress
         )
 
 
@@ -59,11 +71,12 @@ class UploadFileAction(PathAction, APICompletableAction):
 class DownloadFileAction(PathAction, APICompletableAction):
     overwrite_ok: bool
 
-    def complete_api(self, api):
-        api.download(
+    async def complete_api(self, api, progress=None):
+        await api.download(
             project_id=self.project_id,
             path=self.path,
-            overwrite_ok=self.overwrite_ok
+            overwrite_ok=self.overwrite_ok,
+            progress=progress
         )
 
 
@@ -71,8 +84,8 @@ class DownloadFileAction(PathAction, APICompletableAction):
 class FileMovedLocally(PathAction, APICompletableAction):
     new_path: Path
 
-    def complete_api(self, api):
-        api.move_on_cloud(
+    async def complete_api(self, api, progress=None):
+        await api.move_on_cloud(
             project_id=self.project_id,
             old_path=self.path,
             new_path=self.new_path
@@ -81,5 +94,5 @@ class FileMovedLocally(PathAction, APICompletableAction):
 
 @dataclass(frozen=True, slots=True)
 class FileSync(PathAction, MGostCompletableAction):
-    def complete_mgost(self, mgost) -> Action:
-        return mgost.sync_file(self.project_id, self.path)
+    async def complete_mgost(self, mgost, progress=None) -> Action:
+        return await mgost.sync_file(self.project_id, self.path)

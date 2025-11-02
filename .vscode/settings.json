@@ -3,5 +3,8 @@
         "**/__pycache__": true,
         ".venv": true,
         "uv.lock": true,
-    }
+    },
+    "cSpell.words": [
+        "рендера"
+    ]
 }

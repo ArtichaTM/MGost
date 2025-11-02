@@ -1,1 +1,1 @@
-from .settings import FileInfo, MGostInfo, Settings
+from .settings import MGostInfo, Settings

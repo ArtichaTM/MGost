@@ -2,6 +2,7 @@ from logging import ERROR, WARNING
 from pathlib import Path
 
 from httpx import HTTPStatusError
+from rich.progress import Progress
 
 from mgost.api import APIRequestError, ArtichaAPI
 from mgost.api.schemas.mgost import BuildResult
@@ -31,18 +32,18 @@ class MGost:
         self._info = None
         self._api = None
 
-    def __enter__[T: MGost](self: T) -> T:
+    async def __aenter__[T: MGost](self: T) -> T:
         assert self._info is None
         self._info = MGostInfo.load(self._root_path / '.mgost')
         self._api = ArtichaAPI(self._info.api_key.api_key)
+        await self._api.__aenter__()
         return self
 
-    def __exit__(self, *_):
+    async def __aexit__(self, *_):
         assert self._info is not None
         assert self._api is not None
         self._info.save(self._root_path / '.mgost')
-        self._api.close()
-        Console.finalize()
+        await self._api.__aexit__()
 
     @property
     def info(self) -> MGostInfo:
@@ -56,19 +57,19 @@ class MGost:
             " initialized as context manager"
         return self._api
 
-    def sync_files(self) -> None:
-        return sync(self)
+    async def sync_files(self) -> None:
+        return await sync(self)
 
-    def sync_file(self, project_id: int, path: Path):
+    async def sync_file(self, project_id: int, path: Path):
         assert isinstance(project_id, int)
         assert isinstance(path, Path)
-        return sync_file(self, project_id, path)
+        return await sync_file(self, project_id, path)
 
-    def render(self) -> None:
+    async def render(self) -> None:
         Console.echo("Начинаю рендер").nl()
         assert self.info.settings.project_id is not None
         try:
-            result = self.api.render(self.info.settings.project_id)
+            result = await self.api.render(self.info.settings.project_id)
         except HTTPStatusError as e:
             Console\
                 .echo('Не смог выполнить рендер в виду ошибки №')\
@@ -105,22 +106,25 @@ class MGost:
                 .echo(entry.message)\
                 .nl()
         if result.finished:
-            project = self.api.project(
+            project = await self.api.project(
                 self.info.settings.project_id
             )
             Console\
                 .echo('Скачивание документа')
             try:
-                self.api.download(
-                    project.id, project.path_to_docx
-                )
+                with Progress() as progress:
+                    await self.api.download(
+                        project.id, project.path_to_docx,
+                        overwrite_ok=True,
+                        progress=progress
+                    )
             except KeyboardInterrupt:
                 Console\
                     .nl()\
                     .echo('Операция прервана пользователем')\
                     .nl()
 
-    def _pick_project_name(self) -> None:
+    async def _pick_project_name(self) -> None:
         if self.info.settings.project_name is None:
             name = Console.prompt("Имя проекта")
             self.info.settings.project_name = name
@@ -128,7 +132,7 @@ class MGost:
         assert isinstance(name, str)
         Console.echo("Создаю проект...").nl()
         try:
-            project_id = self.api.create_project(name)
+            project_id = await self.api.create_project(name)
         except APIRequestError as e:
             if e.response.status_code != 409:  # Conflict
                 raise
@@ -155,7 +159,7 @@ class MGost:
         if not sync_project:
             self.info.settings.project_name = None
             return
-        projects = self.api.projects()
+        projects = await self.api.projects()
         assert projects
         for project in projects:
             if project.name == name:
@@ -170,8 +174,8 @@ class MGost:
             return
         self.info.settings.project_id = project.id
 
-    def init(self) -> None:
-        if project_valid(self):
+    async def init(self) -> None:
+        if await project_valid(self):
             Console\
                 .echo("Проект уже создан и готов к работе.")\
                 .nl()\
@@ -180,7 +184,7 @@ class MGost:
                 .echo(" для рендера проекта")\
                 .nl()
             return
-        projects = self.api.projects()
+        projects = await self.api.projects()
         mapping = {i: proj for i, proj in enumerate(projects, 1)}
         Console\
             .nl()\
@@ -209,6 +213,12 @@ class MGost:
             project = mapping[value]
             self.info.settings.project_id = project.id
             self.info.settings.project_name = project.name
+            Console\
+                .nl()\
+                .echo("Выбран проект ")\
+                .echo(f"{project.name}", fg='green')\
+                .echo(".")\
+                .force_nl()
             return
         Console\
             .edit()\
@@ -217,7 +227,7 @@ class MGost:
             .echo('"')\
             .nl()
         while True:
-            self._pick_project_name()
+            await self._pick_project_name()
             if self.info.settings.project_name:
                 break
         md_path = self._root_path / 'main.md'
@@ -231,10 +241,10 @@ class MGost:
             replace_md = answer
 
         if replace_md:
-            example = self.api.download_example()
+            example = await self.api.download_example()
             md_path.write_bytes(example)
             assert self.info.settings.project_id is not None
-            self.api.upload(
+            await self.api.upload(
                 self.info.settings.project_id,
                 md_path, overwrite=False
             )

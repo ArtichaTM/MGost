@@ -1,7 +1,6 @@
 import enum
 import json
 from abc import ABC, abstractmethod
-from datetime import datetime
 from os import getenv
 from pathlib import Path
 
@@ -11,7 +10,6 @@ from mgost.console import Console
 
 __all__ = (
     'MGostInfo',
-    'FileInfo',
     'Settings',
 )
 
@@ -30,30 +28,6 @@ class DictBasedClass(ABC):
     @abstractmethod
     def to_dict(self) -> dict:
         raise NotImplementedError()
-
-
-class FileInfo(DictBasedClass):
-    __slots__ = (
-        'path',
-        'date_upload'
-    )
-
-    def __init__(
-        self,
-        path: str,
-        date_upload: float
-    ) -> None:
-        super().__init__()
-        assert isinstance(path, str)
-        assert isinstance(date_upload, (float | int))
-        self.path = Path(path)
-        self.date_upload = datetime.fromtimestamp(date_upload)
-
-    def to_dict(self) -> dict:
-        return {
-            'path': str(self.path),
-            'date_upload': self.date_upload.timestamp()
-        }
 
 
 class Settings(DictBasedClass):
@@ -136,28 +110,20 @@ class ApiKeyHolder:
 
 class MGostInfo:
     __slots__ = (
-        'files',
         'settings',
         'api_key'
     )
-    files: dict[str, FileInfo]
     settings: Settings
     api_key: ApiKeyHolder
 
     def __init__(
         self,
-        files: dict[str, dict] | None = None,
         settings: dict | None = None,
         /,
         path_dotenv: Path | None = None
     ) -> None:
-        if files is None:
-            files = dict()
         if settings is None:
             settings = dict()
-        self.files = {
-            k: FileInfo.from_dict(v) for k, v in files.items()
-        }
         self.settings = Settings.from_dict(settings)
         assert isinstance(path_dotenv, Path)
         self.api_key = ApiKeyHolder(path_dotenv)
@@ -186,7 +152,6 @@ class MGostInfo:
         if not path.exists():
             return cls(path_dotenv=path_dotenv)
         return cls(
-            cls._load_json(path / 'files.json'),
             cls._load_json(path / 'settings.json'),
             path_dotenv=path_dotenv
         )
@@ -194,13 +159,10 @@ class MGostInfo:
     def save(self, path: Path):
         """Saves current state of settings into a folder"""
         self.api_key.save()
-        files = {k: v.to_dict() for k, v in self.files.items()}
         settings = self.settings.to_dict()
-        if not (files or settings):
+        if not settings:
             return
         if not path.exists():
             path.mkdir(parents=False, exist_ok=False)
-        if files:
-            self._save_json(files, path / 'files.json')
         if settings:
             self._save_json(settings, path / 'settings.json', indent=4)
