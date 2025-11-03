@@ -1,0 +1,17 @@
+name: Flake8
+
+on: [push]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - name: Install uv
+      uses: astral-sh/setup-uv@v5
+      with:
+        enable-cache: true
+    - name: Sync project
+      run: uv sync --group tests
+    - name: Testing code flake8
+      run: uv run -m flake8

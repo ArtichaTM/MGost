@@ -1,0 +1,24 @@
+name: Coverage
+
+on: [push]
+
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - name: Install uv
+      uses: astral-sh/setup-uv@v5
+      with:
+        enable-cache: true
+    - name: Installing project with coverage
+      run: uv sync --group tests
+    - name: Testing code with coverage
+      run: uv run -m coverage run -m unittest
+    - name: Collecting coverage
+      run: uv run -m coverage json
+    - uses: actions/upload-artifact@v4
+      with:
+        name: coverage
+        path: coverage.json

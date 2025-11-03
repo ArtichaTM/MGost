@@ -1,0 +1,23 @@
+name: Tests
+
+on: [push]
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        python-version: ["3.12", "3.13"]
+        os: [ubuntu-latest]
+      fail-fast: false
+    runs-on: ${{ matrix.os }}
+    steps:
+    - uses: actions/checkout@v3
+    - name: Install uv
+      uses: astral-sh/setup-uv@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+        enable-cache: true
+    - name: Sync project
+      run: uv sync --group tests
+    - name: Testing code with django test framework
+      run: uv run -m unittest

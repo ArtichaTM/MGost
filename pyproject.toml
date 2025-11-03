@@ -9,12 +9,15 @@ packages = [
 
 [project]
 name = "MGost"
-version = "0.2.4"
+version = "0.2.5"
 authors = [
   {name="Геворкян Артём", email="tima-1324@mail.ru"}
 ]
 description = "MGost converter console app based on ArtichaAPI"
 readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+keywords = ["ArtichaSite", "api"]
 requires-python = ">=3.13"
 dependencies = [
     "aiofiles>=25.1.0",
@@ -28,7 +31,7 @@ dependencies = [
 
 
 classifiers = [
-  "Development Status :: 1 - Planning"
+  "Development Status :: 4 - Beta"
   , "Operating System :: POSIX :: Linux"
   , "Operating System :: Microsoft :: Windows"
   , "Environment :: Console"
@@ -47,6 +50,12 @@ repository = "https://github.com/ArtichaTM/MGost"
 
 [project.scripts]
 mgost = "mgost:main"
+
+[dependency-groups]
+tests = [
+    "coverage>=7.11.0",
+    "flake8>=7.3.0",
+]
 
 [tool.isort]
 multi_line_output = 5

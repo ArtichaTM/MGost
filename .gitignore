@@ -1,2 +1,4 @@
 uv.lock
 **/__pycache__
+dist
+.coverage
