@@ -1,1 +1,2 @@
-from .api import APIRequestError, ArtichaAPI
+from .api import ArtichaAPI
+from .exceptions import APIRequestError
