@@ -1,16 +1,17 @@
-import enum
 from asyncio import Task, create_task, gather
 from datetime import datetime
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
-from rich.progress import BarColumn, MofNCompleteColumn, Progress, TextColumn
+from rich.progress import BarColumn, Progress, TaskID, TextColumn
 
 from mgost.api.actions import (
     Action, DoNothing, DownloadFileAction, FileMovedLocally,
-    MGostCompletableAction, UploadFileAction
+    MGostCompletableAction, MoveAction, UploadFileAction
 )
 from mgost.console import Console
+
+from .progress_utils import BytesOrIntColumn
 
 if TYPE_CHECKING:
     from .mgost import MGost
@@ -18,29 +19,6 @@ if TYPE_CHECKING:
 
 __all__ = ('sync', 'sync_file')
 CURRENT_TIMEZONE = datetime.now().astimezone().tzinfo
-
-
-class FilesCompare(enum.IntEnum):
-    # Local file is newer than cloud file
-    LOCAL_NEWER = enum.auto()
-
-    # Cloud file is newer than local file
-    CLOUD_NEWER = enum.auto()
-
-    # Both files have the same modification time
-    SAME_TIME = enum.auto()
-
-    # File exists only locally
-    LOCAL_ONLY = enum.auto()
-
-    # File exists only in cloud
-    CLOUD_ONLY = enum.auto()
-
-    # Files have same modification time but different sizes/content
-    SAME_TIME_DIFFERENT_CONTENT = enum.auto()
-
-    # Error occurred during comparison
-    COMPARISON_ERROR = enum.auto()
 
 
 class SyncError(Exception):
@@ -145,8 +123,58 @@ async def sync_file(
                 filename=path.name
             )
             if new_path is None:
-                raise FileNotFoundError
+                Console\
+                    .echo("Требуется файл ")\
+                    .echo(f"{path}", fg="cyan")\
+                    .echo(", однако он не найден ни локально")\
+                    .echo(", ни в облаке")
+                return DoNothing()
             return FileMovedLocally(project_id, path, new_path)
+
+
+async def complete_with_progress(
+    mgost: 'MGost',
+    action: MGostCompletableAction,
+    progress: Progress,
+    main_task: TaskID
+) -> None:
+    assert isinstance(action, MGostCompletableAction)
+    await action.complete_mgost(mgost, progress)
+    progress.advance(main_task)
+
+
+async def _sync_non_requirements_file(
+    mgost: 'MGost',
+    file: Literal['md'] | Literal['docx'],
+    progress: Progress,
+    main_task: TaskID
+) -> None:
+    assert file in {'md', 'docx'}
+    project_id = mgost.info.settings.project_id
+    assert project_id is not None
+    assert await mgost.api.is_project_available(project_id)
+    project = await mgost.api.project(project_id)
+    match file:
+        case 'md':
+            cloud_path = project.path_to_markdown
+        case 'docx':
+            cloud_path = project.path_to_docx
+        case _:
+            raise RuntimeError(file)
+    action = await sync_file(
+        mgost, project_id, cloud_path
+    )
+    assert isinstance(action, MGostCompletableAction)
+    await action.complete_mgost(mgost)
+    if isinstance(action, MoveAction):
+        match file:
+            case 'md':
+                mgost.info.settings.md_path = action.new_path
+            case 'docx':
+                mgost.info.settings.docx_path = action.new_path
+            case _:
+                raise RuntimeError((file, action))
+    progress.advance(main_task)
 
 
 async def sync(mgost: 'MGost') -> None:
@@ -162,57 +190,52 @@ async def sync(mgost: 'MGost') -> None:
         .nl()\
         .edit()
 
-    project = await mgost.api.project(project_id)
-
-    Console\
-        .edit()\
-        .echo(
-            "Обновление md файла"
-        )\
-        .nl()\
-        .edit()
-
-    md_action = await sync_file(
-        mgost,
-        project_id,
-        Path(project.path_to_markdown)
-    )
-    if isinstance(md_action, MGostCompletableAction):
-        await md_action.complete_mgost(mgost)
-    else:
-        raise RuntimeError(f"How to complete {md_action}?")
-
-    Console\
-        .edit()\
-        .echo(
-            "Получение списка необходимых"
-            " файлов для рендера проекта"
-        )\
-        .nl()\
-        .edit()
-
-    project_requirements = await mgost.api.project_requirements(
-        project_id
-    )
-
-    actions: list[Action] = []
-    for requirement in project_requirements:
-        actions.append(await sync_file(mgost, project_id, Path(requirement)))
-
-    tasks: list[Task] = []
     with Progress(
-        TextColumn('Синхронизация'),
+        TextColumn('{task.description}'),
         BarColumn(),
-        MofNCompleteColumn(),
-        auto_refresh=True
+        BytesOrIntColumn()
     ) as progress:
-        for action in actions:
-            if isinstance(action, MGostCompletableAction):
-                task = create_task(action.complete_mgost(
-                    mgost, progress=progress
-                ))
-                tasks.append(task)
-            else:
-                raise RuntimeError(f"How to complete {action}?")
+        main_task = progress.add_task(
+            description="Синхронизация",
+            total=2,
+            start=True
+        )
 
-    await gather(*tasks)
+        # Reusable variable
+        await _sync_non_requirements_file(
+            mgost, 'md', progress, main_task
+        )
+
+        project_requirements = await mgost.api.project_requirements(
+            project_id
+        )
+        progress.update(
+            main_task,
+            total=2 + len(project_requirements),
+            refresh=True,
+        )
+
+        actions: list[Action] = []
+        for requirement in project_requirements:
+            actions.append(await sync_file(
+                mgost, project_id, Path(requirement)
+            ))
+
+        tasks: list[Task] = []
+        for action in actions:
+            assert isinstance(action, MGostCompletableAction)
+            task = create_task(
+                complete_with_progress(
+                    mgost=mgost,
+                    action=action,
+                    progress=progress,
+                    main_task=main_task
+                ),
+                name=f"Action {action}"
+            )
+            tasks.append(task)
+        tasks.append(create_task(_sync_non_requirements_file(
+            mgost, 'docx', progress, main_task
+        )))
+
+        await gather(*tasks)

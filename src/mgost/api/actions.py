@@ -49,13 +49,20 @@ class PathAction(Action, ABC):
 
 
 @dataclass(frozen=True, slots=True)
-class DoNothing(APICompletableAction):
-    async def complete_api(self, api, progress=None):
-        pass
+class MoveAction(PathAction, ABC):
+    new_path: Path
 
 
 @dataclass(frozen=True, slots=True)
-class UploadFileAction(PathAction, APICompletableAction):
+class DoNothing(APICompletableAction):
+    async def complete_api(self, api, progress=None):
+        from asyncio import sleep
+        from random import random
+        await sleep(random())
+
+
+@dataclass(frozen=True, slots=True)
+class UploadFileAction(APICompletableAction, PathAction):
     overwrite: bool
 
     async def complete_api(self, api, progress=None):
@@ -68,7 +75,7 @@ class UploadFileAction(PathAction, APICompletableAction):
 
 
 @dataclass(frozen=True, slots=True)
-class DownloadFileAction(PathAction, APICompletableAction):
+class DownloadFileAction(APICompletableAction, PathAction):
     overwrite_ok: bool
 
     async def complete_api(self, api, progress=None):
@@ -81,18 +88,27 @@ class DownloadFileAction(PathAction, APICompletableAction):
 
 
 @dataclass(frozen=True, slots=True)
-class FileMovedLocally(PathAction, APICompletableAction):
-    new_path: Path
-
+class FileMovedLocally(APICompletableAction, MoveAction):
     async def complete_api(self, api, progress=None):
-        await api.move_on_cloud(
-            project_id=self.project_id,
-            old_path=self.path,
-            new_path=self.new_path
+        project_files = await api.project_files(
+            self.project_id
         )
+        if self.path in project_files:
+            await api.move_on_cloud(
+                project_id=self.project_id,
+                old_path=self.path,
+                new_path=self.new_path
+            )
+        else:
+            await api.upload(
+                self.project_id,
+                path=self.new_path,
+                overwrite=False,
+                progress=progress
+            )
 
 
 @dataclass(frozen=True, slots=True)
-class FileSync(PathAction, MGostCompletableAction):
+class FileSync(MGostCompletableAction, PathAction):
     async def complete_mgost(self, mgost, progress=None) -> Action:
         return await mgost.sync_file(self.project_id, self.path)

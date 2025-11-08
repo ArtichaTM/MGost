@@ -1,6 +1,5 @@
 import enum
 import json
-from abc import ABC, abstractmethod
 from os import environ, getenv
 from pathlib import Path
 
@@ -20,38 +19,48 @@ class API_KEY_SOURCE(enum.IntEnum):
     PROMPT = enum.auto()
 
 
-class DictBasedClass(ABC):
-    @classmethod
-    def from_dict(cls, dictionary: dict):
-        return cls(**dictionary)
-
-    @abstractmethod
-    def to_dict(self) -> dict:
-        raise NotImplementedError()
-
-
-class Settings(DictBasedClass):
+class Settings:
     __slots__ = (
         'project_id',
         'project_name',
+        'md_path',
+        'docx_path'
     )
     project_id: int | None
     project_name: str | None
+    md_path: Path | None
+    docx_path: Path | None
 
     def __init__(
         self,
         project_id: int | None = None,
-        project_name: str | None = None
+        project_name: str | None = None,
+        md_path: Path | None = None,
+        docx_path: Path | None = None
     ) -> None:
         super().__init__()
+        assert project_id is None or isinstance(project_id, int)
+        assert project_name is None or isinstance(project_name, str)
+        assert md_path is None or isinstance(md_path, str)
+        assert docx_path is None or isinstance(docx_path, str)
         self.project_id = project_id
         self.project_name = project_name
+        self.md_path = Path(md_path) if md_path else None
+        self.docx_path = Path(docx_path) if docx_path else None
+
+    @classmethod
+    def from_dict[T: Settings](
+        cls: type[T], dictionary: dict
+    ) -> T:
+        return cls(**dictionary)
 
     def to_dict(self) -> dict:
         output = dict()
         if self.project_id is not None:
             output['project_id'] = self.project_id
             output['project_name'] = self.project_name
+            output['md_path'] = str(self.md_path)
+            output['docx_path'] = str(self.docx_path)
         return output
 
 

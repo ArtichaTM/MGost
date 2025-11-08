@@ -23,7 +23,7 @@ class ArtichaAPI:
         '_cache',
         '_base_url',
     )
-    _host: str = 'https://articha.tplinkdns.com/api'
+    _host: str = 'http://127.0.0.1:8001/api'
     _base_url: str
     _token: str
     _client: AsyncClient | None
