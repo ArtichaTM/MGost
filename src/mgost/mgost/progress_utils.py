@@ -10,12 +10,13 @@ class BytesOrIntColumn(ProgressColumn):
             else render empty string int completed/total"""
 
     @staticmethod
-    def _hs(n: int) -> str:
+    def _hs(n: int | float) -> str:
         """human_size"""
+        n = float(n)
         for unit in ("B", "KB", "MB", "GB", "TB"):
             if n < 1024:
                 return f"{n:.2f} {unit}"
-            n //= 1024
+            n /= 1024
         return f"{n:.2f} PB"
 
     def render(self, task: Task) -> RenderableType:
