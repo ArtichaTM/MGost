@@ -4,7 +4,9 @@ from pathlib import Path
 from typing import Awaitable, Literal
 
 from aiopath import AsyncPath
-from httpx import AsyncClient, HTTPStatusError, QueryParams, Response
+from httpx import (
+    AsyncClient, ConnectError, HTTPStatusError, QueryParams, Response
+)
 from httpx._types import RequestFiles
 from rich.progress import Progress
 
@@ -23,7 +25,7 @@ class ArtichaAPI:
         '_cache',
         '_base_url',
     )
-    _host: str = 'http://127.0.0.1:8001/api'
+    _host: str = 'https://articha.ru/api'
     _base_url: str
     _token: str
     _client: AsyncClient | None
@@ -91,6 +93,8 @@ class ArtichaAPI:
             info = resp.json()
             assert 'detail' in info
             return info['detail']
+        except ConnectError:
+            return "Ошибка подключения: сайт недоступен"
 
     async def me(self) -> schemas.TokenInfo:
         return schemas.TokenInfo(**(await self.method(APIRequestInfo(
