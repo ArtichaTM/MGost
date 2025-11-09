@@ -5,11 +5,19 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "Tests",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "pytest"
+        },
+        {
             "name": "Python Debugger: Module",
             "type": "debugpy",
             "request": "launch",
             "module": "mgost",
-            "args": ["sync"],
+            "args": [
+                "sync"
+            ],
             "cwd": "${workspaceFolder}/test"
         }
     ]
