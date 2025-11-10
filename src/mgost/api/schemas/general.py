@@ -9,3 +9,4 @@ class TokenInfo(BaseModel):
     created: datetime
     modified: datetime
     expires: datetime | None = None
+    accessed: datetime | None = None
