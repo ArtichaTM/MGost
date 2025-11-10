@@ -1,13 +1,6 @@
-from random import shuffle
-from string import ascii_letters
-
 from mgost.api import ArtichaAPI
 
-BASE_URL = "https://api.example.com"
-letters = [*ascii_letters]
-shuffle(letters)
-API_TOKEN = ''.join(letters)
-del letters
+from ..utils import API_TOKEN, BASE_URL
 
 
 def init_api(token: str | None = None) -> ArtichaAPI:
