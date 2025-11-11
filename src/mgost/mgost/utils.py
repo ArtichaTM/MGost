@@ -12,7 +12,7 @@ async def token_valid(mgost: 'MGost') -> bool:
     assert mgost.api is not None
     Console.echo('Валидация токена ...').edit()
     token_info = await mgost.api.validate_token()
-    if isinstance(token_info, str):
+    while isinstance(token_info, str):
         Console\
             .echo('Токен некорректен: ', fg="red")\
             .echo(token_info, fg="bright_red")\
@@ -22,13 +22,14 @@ async def token_valid(mgost: 'MGost') -> bool:
         api_key_cl.remove_current_key()
         try:
             api_key_cl.load_api_key()
-        except Exception:
+        except KeyboardInterrupt:
             Console\
+                .nl()\
                 .echo("Старый токен возвращён")\
                 .nl()
             api_key_cl.api_key = key
             raise
-        return await token_valid(mgost)
+        token_info = await mgost.api.validate_token()
     return True
 
 

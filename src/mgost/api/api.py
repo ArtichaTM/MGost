@@ -50,16 +50,12 @@ class ArtichaAPI:
         self._base_url = base_url
         self._token = api_token
         self._cache = dict()
+        self._client = None
 
     async def __aenter__[T: ArtichaAPI](self: T) -> T:
         assert self._base_url is not None
-        self._client = AsyncClient(
-            headers={
-                'X-API-Key': self._token
-            },
-            base_url=self._base_url
-        )
-        await self._client.__aenter__()
+        assert self._client is None
+        await self._client_refresh()
         return self
 
     async def __aexit__(self, *args) -> None:
@@ -68,6 +64,17 @@ class ArtichaAPI:
             raise ClientClosed(f"{self.__qualname__} is closed")
         await self._client.__aexit__()
         self._client = None
+
+    async def _client_refresh(self) -> None:
+        if self._client is not None:
+            await self._client.__aexit__()
+        self._client = AsyncClient(
+            headers={
+                'X-API-Key': self._token
+            },
+            base_url=self._base_url
+        )
+        await self._client.__aenter__()
 
     def method(
         self, request: APIRequestInfo
@@ -83,6 +90,7 @@ class ArtichaAPI:
         self._cache.clear()
 
     async def validate_token(self) -> str | schemas.TokenInfo:
+        await self._client_refresh()
         try:
             resp = await self.method(APIRequestInfo(
                 'GET', '/me'
