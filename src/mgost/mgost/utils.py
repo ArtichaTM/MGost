@@ -37,7 +37,9 @@ def _incorrect_project() -> None:
     Console\
         .echo("Текущий проект ")\
         .echo("недействительный", fg="red")\
-        .echo(" в облаке. Воспользуйтесь ")\
+        .echo(" в облаке.")\
+        .nl()\
+        .echo("Воспользуйтесь ")\
         .echo('mgost init', fg='cyan')\
         .echo(' для инициализации проекта')\
         .force_nl()
