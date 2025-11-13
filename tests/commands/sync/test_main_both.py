@@ -1,7 +1,7 @@
 import pytest
 import respx
 
-from ..utils import create_simple_environment
+from ..environment import create_simple_environment
 
 
 @pytest.mark.asyncio
