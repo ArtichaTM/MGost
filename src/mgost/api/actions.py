@@ -44,6 +44,7 @@ class APICompletableAction(MGostCompletableAction, ABC):
 
 @dataclass(frozen=True, slots=True)
 class PathAction(Action, ABC):
+    root_path: Path
     project_id: int
     path: Path
 
@@ -66,6 +67,7 @@ class UploadFileAction(APICompletableAction, PathAction):
     async def complete_api(self, api, progress=None):
         await api.upload(
             project_id=self.project_id,
+            root_path=self.root_path,
             path=self.path,
             overwrite=self.overwrite,
             progress=progress
@@ -79,6 +81,7 @@ class DownloadFileAction(APICompletableAction, PathAction):
     async def complete_api(self, api, progress=None):
         await api.download(
             project_id=self.project_id,
+            root_path=self.root_path,
             path=self.path,
             overwrite_ok=self.overwrite_ok,
             progress=progress
@@ -88,18 +91,21 @@ class DownloadFileAction(APICompletableAction, PathAction):
 @dataclass(frozen=True, slots=True)
 class FileMovedLocally(APICompletableAction, MoveAction):
     async def complete_api(self, api, progress=None):
+        assert self.path != self.new_path
         project_files = await api.project_files(
             self.project_id
         )
         if self.path in project_files:
             await api.move_on_cloud(
                 project_id=self.project_id,
+                root_path=self.root_path,
                 old_path=self.path,
                 new_path=self.new_path
             )
         else:
             await api.upload(
                 self.project_id,
+                root_path=self.root_path,
                 path=self.new_path,
                 overwrite=False,
                 progress=progress

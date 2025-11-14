@@ -11,7 +11,7 @@ from mgost.api.schemas.mgost import (
     BuildResult, Project, ProjectExtended, ProjectFile
 )
 
-from .actions import Action
+from ...utils import BASE_URL
 from .routes import Routes
 from .side_effects import FileMethods
 from .sync_check import assert_synced
@@ -26,18 +26,18 @@ class EnvironmentHelper:
         'respx_mock',
         'project',
         'local_files',
+        'requirements',
         'temp_dir_local',
         'routes',
         'file_methods',
-        'cloud_actions_log',
     )
     respx_mock: respx.MockRouter
     project: ProjectExtended
     local_files: dict[Path, ProjectFile]
+    requirements: dict[Path, APIFileInfo]
     temp_dir_local: TemporaryDirectory | None
     routes: Routes
     file_methods: FileMethods
-    cloud_actions_log: list[Action]
 
     def __init__(
         self,
@@ -57,10 +57,10 @@ class EnvironmentHelper:
         assert len({
             f.size for f in self.local_files.values()
         }) == len(self.local_files)
-        self.routes = Routes()
+        self.requirements = {Path(k): v for k, v in requirements.items()}
         self.temp_dir_local = None
+        self.routes = Routes()
         self.file_methods = FileMethods(self)
-        self.cloud_actions_log = []
 
     async def __aenter__(self) -> None:
         assert self.temp_dir_local is None
@@ -70,7 +70,8 @@ class EnvironmentHelper:
 
     async def __aexit__(self, exc, value, tb) -> None:
         assert self.temp_dir_local is not None
-        assert_synced(self)
+        if exc is None:
+            assert_synced(self)
         self.temp_dir_local.__exit__(exc, value, tb)
         self.temp_dir_local = None
 
@@ -134,14 +135,14 @@ class EnvironmentHelper:
 
         for local_file in self.local_files.values():
             file_path = root_folder / local_file.path
-            file_path.touch(exist_ok=False)
+            file_path.write_text(data='0' * local_file.size)
             utime(file_path, (
                 local_file.created.timestamp(),
                 local_file.modified.timestamp()
             ))
 
         self.routes._projects = self.respx_mock.get(
-            "/mgost/project"
+            f"{BASE_URL}/mgost/project"
         ).respond(status_code=200, json=[
             Project(
                 name=self.project.name,
@@ -151,10 +152,10 @@ class EnvironmentHelper:
             ).model_dump(mode='json')
         ])
         self.routes._project = self.respx_mock.get(
-            f"/mgost/project/{self.project.id}"
+            f"{BASE_URL}/mgost/project/{self.project.id}"
         ).respond(status_code=200, json=self.project.model_dump(mode='json'))
         self.routes._project_files = self.respx_mock.get(
-            f"/mgost/project/{self.project.id}/files"
+            f"{BASE_URL}/mgost/project/{self.project.id}/files"
         ).respond(status_code=200, json=[
             ProjectFile(
                 project_id=self.project.id,
@@ -164,8 +165,13 @@ class EnvironmentHelper:
                 size=cloud_file.size
             ).model_dump(mode='json') for cloud_file in self.project.files
         ])
+        self.routes._project_requirements = self.respx_mock.get(
+            f"{BASE_URL}/mgost/project/{self.project.id}/requirements"
+        ).respond(status_code=200, json={
+            path: {"path": path} for path in self.requirements
+        })
         self.routes._project_render = self.respx_mock.get(
-            f"/mgost/project/{self.project.id}/render"
+            f"{BASE_URL}/mgost/project/{self.project.id}/render"
         ).mock(side_effect=self.project_render)
 
         cloud_paths: set[Path] = {Path(i.path) for i in self.project.files}
@@ -180,7 +186,8 @@ class EnvironmentHelper:
                 path_str = str(path).replace('\\', '/')
                 routes_dict[path] = self.respx_mock.request(
                     method,
-                    f"/mgost/project/{self.project.id}/files/{path_str}"
+                    f"{BASE_URL}/mgost/project/{self.project.id}"
+                    f"/files/{path_str}"
                 ).mock(side_effect=side_effect_func)
 
             routes_dict, side_effect_func = self._get_route_and_side_effect(
@@ -189,5 +196,5 @@ class EnvironmentHelper:
             for path in new_to_cloud_paths:
                 routes_dict[path] = self.respx_mock.request(
                     method,
-                    f"/mgost/project/{self.project.id}/files/{path}"
+                    f"{BASE_URL}/mgost/project/{self.project.id}/files/{path}"
                 ).mock(side_effect=side_effect_func)

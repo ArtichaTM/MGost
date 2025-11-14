@@ -73,7 +73,8 @@ def _search_file(
                 size=size
             )
             if result:
-                return current_file_path
+
+                return current_file_path.relative_to(root_path)
 
 
 async def sync_file(
@@ -90,11 +91,15 @@ async def sync_file(
     assert isinstance(project_id, int)
     assert isinstance(path, Path)
     project_files = await mgost.api.project_files(project_id)
-    local_md_exists = path.exists()
+    full_path = mgost._root_path / path
+    local_md_exists = full_path.exists()
     cloud_md_exists = path in project_files
     match local_md_exists, cloud_md_exists:
         case True, False:
-            return UploadFileAction(project_id, path, False)
+            return UploadFileAction(
+                mgost._root_path, project_id,
+                path, False
+            )
         case False, True:
             project_file = project_files[path]
             new_path = _search_file(
@@ -104,18 +109,32 @@ async def sync_file(
                 size=project_file.size
             )
             if new_path is None:
-                return DownloadFileAction(project_id, path, False)
-            return FileMovedLocally(project_id, path, new_path)
+                return DownloadFileAction(
+                    mgost._root_path, project_id,
+                    path, False
+                )
+            return FileMovedLocally(
+                mgost._root_path, project_id,
+                full_path, new_path
+            )
         case True, True:
             cloud_mt = project_files[path].modified
             local_mt = datetime.fromtimestamp(
-                path.lstat().st_mtime,
+                full_path.lstat().st_mtime,
                 tz=CURRENT_TIMEZONE
             )
+            assert cloud_mt.tzinfo is not None
+            assert local_mt.tzinfo is not None
             if cloud_mt > local_mt:
-                return DownloadFileAction(project_id, path, True)
+                return DownloadFileAction(
+                    mgost._root_path, project_id,
+                    path, True
+                )
             elif cloud_mt < local_mt:
-                return UploadFileAction(project_id, path, True)
+                return UploadFileAction(
+                    mgost._root_path, project_id,
+                    path, True
+                )
             return DoNothing()
         case False, False:
             new_path = _search_file(
@@ -129,7 +148,10 @@ async def sync_file(
                     .echo(", однако он не найден ни локально")\
                     .echo(", ни в облаке")
                 return DoNothing()
-            return FileMovedLocally(project_id, path, new_path)
+            return FileMovedLocally(
+                mgost._root_path, project_id,
+                path, new_path
+            )
 
 
 async def complete_with_progress(

@@ -51,6 +51,7 @@ class Routes:
     _projects: respx.Route | None = None
     _project: respx.Route | None = None
     _project_files: respx.Route | None = None
+    _project_requirements: respx.Route | None = None
     _project_render: respx.Route | None = None
     file: _RoutesFile = field(default_factory=_RoutesFile)
 
@@ -68,6 +69,11 @@ class Routes:
     def project_files(self) -> respx.Route:
         assert self._project_files is not None
         return self._project_files
+
+    @property
+    def project_requirements(self) -> respx.Route:
+        assert self._project_requirements is not None
+        return self._project_requirements
 
     @property
     def project_render(self) -> respx.Route:

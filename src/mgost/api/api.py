@@ -196,6 +196,7 @@ class ArtichaAPI:
     async def upload(
         self,
         project_id: int,
+        root_path: Path,
         path: Path,
         overwrite: bool,
         progress: Progress | None = None
@@ -203,12 +204,14 @@ class ArtichaAPI:
         assert isinstance(project_id, int)
         assert isinstance(path, Path)
         assert isinstance(overwrite, bool)
-        if not (path.exists() and path.is_file()):
+        assert not path.is_relative_to(root_path)
+        full_path = root_path / path
+        if not (full_path.exists() and full_path.is_file()):
             raise FileNotFoundError
         params: dict = {
             'project_id': project_id,
             'modify_time': datetime.fromtimestamp(
-                path.lstat().st_mtime, CURRENT_TIMEZONE
+                full_path.lstat().st_mtime, CURRENT_TIMEZONE
             )
         }
         if overwrite:
@@ -216,7 +219,7 @@ class ArtichaAPI:
                 'POST',
                 f'/mgost/project/{project_id}/files/{path}',
                 params=params,
-                request_file_path=AsyncPath(path),
+                request_file_path=AsyncPath(full_path),
                 progress=progress
             ))
         else:
@@ -225,7 +228,7 @@ class ArtichaAPI:
                 'PUT',
                 f'/mgost/project/{project_id}/files/{path}',
                 params=params,
-                request_file_path=AsyncPath(path),
+                request_file_path=AsyncPath(full_path),
                 progress=progress
             ))
         self._invalidate_cache()
@@ -233,6 +236,7 @@ class ArtichaAPI:
     async def download(
         self,
         project_id: int,
+        root_path: Path,
         path: Path,
         overwrite_ok: bool = True,
         progress: Progress | None = None
@@ -254,9 +258,12 @@ class ArtichaAPI:
     async def move_on_cloud(
         self,
         project_id: int,
+        root_path: Path,
         old_path: Path,
         new_path: Path
     ) -> bool:
+        assert not new_path.is_relative_to(root_path)
+        assert not old_path.is_relative_to(root_path)
         resp = await self.method(APIRequestInfo(
             'PATCH',
             f'/mgost/project/{project_id}/files/{old_path}',

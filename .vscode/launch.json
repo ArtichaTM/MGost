@@ -8,7 +8,8 @@
             "name": "Tests",
             "type": "debugpy",
             "request": "launch",
-            "module": "pytest"
+            "module": "pytest",
+            "args": ["-s"]
         },
         {
             "name": "Python Debugger: Module",
