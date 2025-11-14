@@ -56,9 +56,7 @@ class MoveAction(PathAction, ABC):
 @dataclass(frozen=True, slots=True)
 class DoNothing(APICompletableAction):
     async def complete_api(self, api, progress=None):
-        from asyncio import sleep
-        from random import random
-        await sleep(random())
+        pass
 
 
 @dataclass(frozen=True, slots=True)
