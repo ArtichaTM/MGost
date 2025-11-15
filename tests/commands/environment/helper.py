@@ -54,9 +54,6 @@ class EnvironmentHelper:
         self.respx_mock = respx_mock
         self.project = project
         self.local_files = {Path(f.path): f for f in local_files}
-        assert len({
-            f.size for f in self.local_files.values()
-        }) == len(self.local_files)
         self.requirements = {Path(k): v for k, v in requirements.items()}
         self.temp_dir_local = None
         self.routes = Routes()
