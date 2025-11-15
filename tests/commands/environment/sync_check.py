@@ -44,11 +44,18 @@ def assert_synced(env: 'EnvironmentHelper') -> None:
         assert path.is_relative_to(local_path)
         local_paths[path.relative_to(local_path)] = path
 
+    assert len(cloud_paths) == len(local_paths), (
+        f"Different amount of files."
+        f"\nLocal: {', '.join(str(i) for i in local_paths)}"
+        f"\nCloud: {', '.join(str(i) for i in cloud_paths)}"
+    )
     diff = cloud_paths.symmetric_difference(local_paths.keys())
     assert not diff, diff
 
     for file in env.project.files:
         full_path = local_path / file.path
+        assert full_path.exists()
+        assert full_path.is_file()
         cloud_mt = file.modified
         local_mt = datetime.fromtimestamp(
             local_paths[Path(file.path)].lstat().st_mtime,
