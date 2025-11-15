@@ -2,6 +2,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING, NamedTuple
 
+from .utils import walk_in_project_dir
+
 if TYPE_CHECKING:
     from .helper import EnvironmentHelper
 
@@ -36,15 +38,11 @@ def assert_synced(env: 'EnvironmentHelper') -> None:
     assert env.temp_dir_local is not None
     cloud_paths: set[Path] = {Path(i.path) for i in env.project.files}
     local_path = Path(env.temp_dir_local.name)
-    # Relative path too rout project : full path
     local_paths: dict[Path, Path] = dict()
-    for directory, _, files in local_path.walk():
-        if directory.name == '.mgost':
-            continue
-        for file_path in files:
-            full_path = directory / file_path
-            relative_path = full_path.relative_to(local_path)
-            local_paths[relative_path] = full_path
+    for path in walk_in_project_dir(local_path):
+        assert path.is_absolute()
+        assert path.is_relative_to(local_path)
+        local_paths[path.relative_to(local_path)] = path
 
     diff = cloud_paths.symmetric_difference(local_paths.keys())
     assert not diff, diff
