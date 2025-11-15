@@ -187,7 +187,7 @@ async def _sync_non_requirements_file(
         mgost, project_id, cloud_path
     )
     assert isinstance(action, MGostCompletableAction)
-    await action.complete_mgost(mgost)
+    await action.complete_mgost(mgost, progress)
     if isinstance(action, MoveAction):
         match file:
             case 'md':

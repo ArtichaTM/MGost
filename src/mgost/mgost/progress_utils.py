@@ -7,7 +7,8 @@ class BytesOrIntColumn(ProgressColumn):
     """
         Show human-readable bytes only for
             tasks with task.fields['bytes']==True
-            else render empty string int completed/total"""
+            else render empty string int completed/total
+    """
 
     @staticmethod
     def _hs(n: int | float) -> str:
@@ -24,8 +25,8 @@ class BytesOrIntColumn(ProgressColumn):
         completed = task.completed
         total = task.total
         assert isinstance(completed, int)
-        assert total is None or isinstance(total, int)
         if not show or task.total is None:
+            assert total is None or isinstance(total, int)
             return Text(f"{completed}/{total}")
         else:
             return Text(

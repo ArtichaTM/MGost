@@ -223,7 +223,6 @@ class ArtichaAPI:
                 progress=progress
             ))
         else:
-            params['path'] = path
             await self.method(APIRequestInfo(
                 'PUT',
                 f'/mgost/project/{project_id}/files/{path}',
@@ -242,18 +241,20 @@ class ArtichaAPI:
         progress: Progress | None = None
     ) -> None:
         assert isinstance(project_id, int)
+        assert isinstance(root_path, Path)
         assert isinstance(path, Path)
         assert isinstance(overwrite_ok, bool)
+        full_path = root_path / path
         resp = await self.method(APIRequestInfo(
             'GET', f'/mgost/project/{project_id}/files/{path}',
-            response_file_path=AsyncPath(path),
+            response_file_path=AsyncPath(full_path),
             progress=progress
         ))
         resp.raise_for_status()
-        access_time = path.lstat().st_atime
+        access_time = full_path.lstat().st_atime
         project_files = await self.project_files(project_id)
         project_file = project_files[path]
-        utime(path, (access_time, project_file.modified.timestamp()))
+        utime(full_path, (access_time, project_file.modified.timestamp()))
 
     async def move_on_cloud(
         self,

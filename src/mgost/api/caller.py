@@ -19,6 +19,10 @@ def api_request(
     assert isinstance(client, AsyncClient)
     assert request.url.startswith('/')
     assert isinstance(request.url, str)
+    assert request.request_file_path is None or \
+        request.request_file_path.is_absolute()
+    assert request.response_file_path is None or \
+        request.response_file_path.is_absolute()
     params = request.params
     if params is None:
         params = QueryParams()
@@ -40,6 +44,12 @@ async def _method_normal(
     cache: dict,
     request: APIRequestInfo
 ) -> Response:
+    assert isinstance(client, AsyncClient)
+    assert isinstance(cache, dict)
+    assert isinstance(request, APIRequestInfo)
+    assert request.response_file_path is None
+    assert request.request_file_path is None
+    assert not request.with_progress()
     key = (request.method, request.url, request.params)
     try:
         if (value := cache.get(key)) is not None:
@@ -125,7 +135,8 @@ async def _method_progress_upload(
             request.request_file_path,
             progress=request.progress,
             task_id=task_id
-        )
+        ),
+        params=request.params
     )
     return response
 

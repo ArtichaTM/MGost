@@ -50,6 +50,7 @@ def assert_synced(env: 'EnvironmentHelper') -> None:
     assert not diff, diff
 
     for file in env.project.files:
+        full_path = local_path / file.path
         cloud_mt = file.modified
         local_mt = datetime.fromtimestamp(
             local_paths[Path(file.path)].lstat().st_mtime,
@@ -61,7 +62,7 @@ def assert_synced(env: 'EnvironmentHelper') -> None:
         )
 
         cloud_size = file.size
-        local_size = (local_path / file.path).lstat().st_size
+        local_size = full_path.lstat().st_size
         assert local_size == cloud_size, (
             f"Size diff for {file.path}, "
             f"{local_size} vs {cloud_size}"
