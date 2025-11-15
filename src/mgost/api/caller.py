@@ -52,7 +52,7 @@ async def _method_normal(
         'params': request.params
     }
     if request.request_file_path is not None:
-        kwargs['data'] = _file_chunker(
+        kwargs['content'] = _file_chunker(
             request.request_file_path
         )
     func = partial(
