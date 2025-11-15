@@ -1,5 +1,6 @@
 from asyncio import Task, create_task, gather
 from datetime import datetime
+from logging import getLogger
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal
 
@@ -19,6 +20,7 @@ if TYPE_CHECKING:
 
 __all__ = ('sync', 'sync_file')
 CURRENT_TIMEZONE = datetime.now().astimezone().tzinfo
+logger = getLogger(__name__)
 
 
 class SyncError(Exception):
@@ -186,6 +188,7 @@ async def _sync_non_requirements_file(
     action = await sync_file(
         mgost, project_id, cloud_path
     )
+    logger.info(f"Syncing: {file} using {action}")
     assert isinstance(action, MGostCompletableAction)
     await action.complete_mgost(mgost, progress)
     if isinstance(action, MoveAction):
@@ -242,6 +245,7 @@ async def sync(mgost: 'MGost') -> None:
             actions.append(await sync_file(
                 mgost, project_id, Path(requirement)
             ))
+        logger.info(f"Completing tasks: {actions}")
 
         tasks: list[Task] = []
         for action in actions:
