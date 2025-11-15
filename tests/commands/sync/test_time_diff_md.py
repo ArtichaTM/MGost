@@ -11,7 +11,7 @@ from ..environment.helper import EnvironmentHelper
 
 
 @pytest.mark.asyncio
-async def test_only_md_upload(
+async def test_upload(
     monkeypatch: pytest.MonkeyPatch,
     respx_mock: respx.MockRouter
 ):
@@ -66,7 +66,7 @@ async def test_only_md_upload(
 
 
 @pytest.mark.asyncio
-async def test_only_md_download(
+async def test_download(
     monkeypatch: pytest.MonkeyPatch,
     respx_mock: respx.MockRouter
 ):
