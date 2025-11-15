@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Iterable
+from typing import Generator, Iterable
 
 import respx
 
@@ -25,6 +25,14 @@ class _RoutesFileMethods:
         method_route = getattr(self, method)
         return method_route
 
+    def _yield_routes(self) -> Generator[respx.Route, None, None]:
+        for method in self.methods():
+            dictionary = getattr(self, method)
+            assert isinstance(dictionary, dict)
+            for route in dictionary.values():
+                assert isinstance(route, respx.Route)
+                yield route
+
 
 @dataclass(slots=True, frozen=True)
 class _RoutesFile:
@@ -44,6 +52,12 @@ class _RoutesFile:
         routes_file = getattr(self, type)
         assert isinstance(routes_file, _RoutesFileMethods)
         return routes_file.route_dict(method)
+
+    def _yield_routes(self) -> Generator[respx.Route, None, None]:
+        for type in self.types():
+            routes_file = getattr(self, type)
+            assert isinstance(routes_file, _RoutesFileMethods)
+            yield from routes_file._yield_routes()
 
 
 @dataclass(slots=True, frozen=False)
@@ -79,3 +93,28 @@ class Routes:
     def project_render(self) -> respx.Route:
         assert self._project_render is not None
         return self._project_render
+
+    def _yield_routes(self) -> Generator[respx.Route, None, None]:
+        yield self.project
+        yield self.project_files
+        yield self.project_render
+        yield self.project_requirements
+        yield self.projects
+        yield from self.file._yield_routes()
+
+    def assert_all_not_called_except(
+        self,
+        *routes: respx.Route
+    ) -> None:
+        should_be_called = {route.pattern for route in routes}
+        for route in self._yield_routes():
+            assert isinstance(route, respx.Route)
+            print(f"Comparing {route.pattern}")
+            if route.pattern in should_be_called:
+                assert route.called, (
+                    f"Route is not called when should: {route}"
+                )
+            else:
+                assert not route.called, (
+                    f"Route is called when should not: {route}"
+                )

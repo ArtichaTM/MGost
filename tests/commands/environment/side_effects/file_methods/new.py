@@ -27,6 +27,7 @@ class NewFileMethods(FileMethodsBase):
         file.modified = modify_time
         size = len(request.read())
         file.size = size
+        self.env.project.files.append(file)
         return Response(
             status_code=201,
             json=file.model_dump(mode='json')

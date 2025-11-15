@@ -122,8 +122,8 @@ class EnvironmentHelper:
         assert isinstance(type, str)
         assert isinstance(method, str)
         return (
-            self.routes.file.existing.route_dict(method),
-            self.file_methods.existing.get_side_effect(method)
+            self.routes.file.route_dict(method, type),
+            self.file_methods.get_side_effect(type, method)
         )
 
     async def prepare_environment(self) -> None:
@@ -191,7 +191,9 @@ class EnvironmentHelper:
                 'new', method
             )
             for path in new_to_cloud_paths:
+                path_str = str(path).replace('\\', '/')
                 routes_dict[path] = self.respx_mock.request(
                     method,
-                    f"{BASE_URL}/mgost/project/{self.project.id}/files/{path}"
+                    f"{BASE_URL}/mgost/project/{self.project.id}"
+                    f"/files/{path_str}"
                 ).mock(side_effect=side_effect_func)
