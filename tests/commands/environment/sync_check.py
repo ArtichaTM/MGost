@@ -53,10 +53,16 @@ def assert_synced(env: 'EnvironmentHelper') -> None:
         cloud_mt = file.modified
         local_mt = datetime.fromtimestamp(
             local_paths[Path(file.path)].lstat().st_mtime,
-            tz=datetime.now().tzinfo
+            tz=cloud_mt.tzinfo
         )
-        assert cloud_mt == local_mt, f"Time diff for {file.path}"
+        assert cloud_mt == local_mt, (
+            f"Time diff for {file.path}, "
+            f"{local_mt} vs {cloud_mt}"
+        )
 
         cloud_size = file.size
         local_size = (local_path / file.path).lstat().st_size
-        assert cloud_size == local_size, f"Size diff for {file.path}"
+        assert local_size == cloud_size, (
+            f"Size diff for {file.path}, "
+            f"{local_size} vs {cloud_size}"
+        )
