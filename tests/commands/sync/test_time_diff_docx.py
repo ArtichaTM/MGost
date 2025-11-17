@@ -61,7 +61,7 @@ async def test_upload(
                 size=21
             ),
         ],
-        requirements=dict()
+        requirements=[]
     )
     async with env:
         assert env.temp_dir_local is not None
@@ -131,7 +131,7 @@ async def test_download(
                 size=20
             ),
         ],
-        requirements=dict()
+        requirements=[]
     )
     async with env:
         assert env.temp_dir_local is not None

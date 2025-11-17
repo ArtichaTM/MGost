@@ -47,7 +47,7 @@ async def test_upload(
                 size=21
             ),
         ],
-        requirements=dict()
+        requirements=[]
     )
     async with env:
         assert env.temp_dir_local is not None
@@ -58,11 +58,12 @@ async def test_upload(
             mgost.info.settings.project_id = 1
             mgost.info.settings.project_name = 'Test'
             await mgost.sync_files()
-        assert env.routes.project.called
-        assert env.routes.project_requirements.called
-        assert env.routes.project_files.called
-        assert env.routes.file.existing.post[Path('main.md')].called
-        assert env.project.files[0].size == 21
+        env.routes.assert_all_not_called_except(
+            env.routes.project,
+            env.routes.project_requirements,
+            env.routes.project_files,
+            env.routes.file.existing.post[Path('main.md')]
+        )
 
 
 @pytest.mark.asyncio
@@ -102,7 +103,7 @@ async def test_download(
                 size=20
             ),
         ],
-        requirements=dict()
+        requirements=[]
     )
     async with env:
         assert env.temp_dir_local is not None

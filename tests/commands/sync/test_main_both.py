@@ -43,7 +43,7 @@ async def test_only_md(respx_mock: respx.MockRouter):
                 size=20
             ),
         ],
-        requirements=dict()
+        requirements=[]
     )
     async with env:
         pass
@@ -97,7 +97,7 @@ async def test_md_docx(respx_mock: respx.MockRouter):
                 size=200
             ),
         ],
-        requirements=dict()
+        requirements=[]
     )
     async with env:
         pass

@@ -214,10 +214,11 @@ class ArtichaAPI:
                 full_path.lstat().st_mtime, CURRENT_TIMEZONE
             )
         }
+        path_str = str(path).replace('\\', '/')
         if overwrite:
             await self.method(APIRequestInfo(
                 'POST',
-                f'/mgost/project/{project_id}/files/{path}',
+                f'/mgost/project/{project_id}/files/{path_str}',
                 params=params,
                 request_file_path=AsyncPath(full_path),
                 progress=progress
@@ -225,7 +226,7 @@ class ArtichaAPI:
         else:
             await self.method(APIRequestInfo(
                 'PUT',
-                f'/mgost/project/{project_id}/files/{path}',
+                f'/mgost/project/{project_id}/files/{path_str}',
                 params=params,
                 request_file_path=AsyncPath(full_path),
                 progress=progress
@@ -245,8 +246,9 @@ class ArtichaAPI:
         assert isinstance(path, Path)
         assert isinstance(overwrite_ok, bool)
         full_path = root_path / path
+        path_str = str(path).replace('\\', '/')
         resp = await self.method(APIRequestInfo(
-            'GET', f'/mgost/project/{project_id}/files/{path}',
+            'GET', f'/mgost/project/{project_id}/files/{path_str}',
             response_file_path=AsyncPath(full_path),
             progress=progress
         ))
@@ -265,10 +267,12 @@ class ArtichaAPI:
     ) -> bool:
         assert not new_path.is_relative_to(root_path)
         assert not old_path.is_relative_to(root_path)
+        old_path_str = str(old_path).replace('\\', '/')
+        new_path_str = str(new_path).replace('\\', '/')
         resp = await self.method(APIRequestInfo(
             'PATCH',
-            f'/mgost/project/{project_id}/files/{old_path}',
-            {'target': new_path}
+            f'/mgost/project/{project_id}/files/{old_path_str}',
+            {'target': new_path_str}
         ))
         self._invalidate_cache()
         return schemas.Message(**resp.json()).is_ok()

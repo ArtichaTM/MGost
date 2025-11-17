@@ -8,7 +8,7 @@ import respx
 from httpx import Request, Response
 
 from mgost.api.schemas.mgost import (
-    BuildResult, Project, ProjectExtended, ProjectFile
+    BuildResult, FileRequirement, Project, ProjectExtended, ProjectFile
 )
 
 from ...utils import BASE_URL
@@ -34,7 +34,7 @@ class EnvironmentHelper:
     respx_mock: respx.MockRouter
     project: ProjectExtended
     local_files: dict[Path, ProjectFile]
-    requirements: dict[Path, APIFileInfo]
+    requirements: dict[Path, FileRequirement]
     temp_dir_local: TemporaryDirectory | None
     routes: Routes
     file_methods: FileMethods
@@ -44,17 +44,16 @@ class EnvironmentHelper:
         respx_mock: respx.MockRouter,
         project: ProjectExtended,
         local_files: Iterable[ProjectFile],
-        requirements: dict[str, APIFileInfo],
+        requirements: list[FileRequirement],
     ) -> None:
         assert isinstance(respx_mock, respx.MockRouter)
         assert project is None or isinstance(project, ProjectExtended)
-        assert isinstance(requirements, dict)
-        assert all((isinstance(r, str) for r in requirements.keys()))
-        assert all((isinstance(r, str) for r in requirements.values()))
+        assert isinstance(requirements, list)
+        assert all((isinstance(r, FileRequirement) for r in requirements))
         self.respx_mock = respx_mock
         self.project = project
         self.local_files = {Path(f.path): f for f in local_files}
-        self.requirements = {Path(k): v for k, v in requirements.items()}
+        self.requirements = {Path(k.path): k for k in requirements}
         self.temp_dir_local = None
         self.routes = Routes()
         self.file_methods = FileMethods(self)
@@ -132,6 +131,7 @@ class EnvironmentHelper:
 
         for local_file in self.local_files.values():
             file_path = root_folder / local_file.path
+            file_path.parent.mkdir(exist_ok=True, parents=True)
             file_path.write_text(data='0' * local_file.size)
             utime(file_path, (
                 local_file.created.timestamp(),
@@ -165,7 +165,7 @@ class EnvironmentHelper:
         self.routes._project_requirements = self.respx_mock.get(
             f"{BASE_URL}/mgost/project/{self.project.id}/requirements"
         ).respond(status_code=200, json={
-            path: {"path": path} for path in self.requirements
+            str(path): {"path": str(path)} for path in self.requirements.keys()
         })
         self.routes._project_render = self.respx_mock.get(
             f"{BASE_URL}/mgost/project/{self.project.id}/render"
