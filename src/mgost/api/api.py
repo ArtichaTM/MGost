@@ -191,7 +191,7 @@ class ArtichaAPI:
     async def create_project(self, name: str) -> int:
         assert isinstance(name, str)
         resp = await self.method(APIRequestInfo(
-            'GET', '/mgost/project',
+            'PUT', '/mgost/project',
             {'project_name': name}
         ))
         self._invalidate_cache()

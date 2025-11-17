@@ -1,8 +1,9 @@
+import enum
 from datetime import datetime
 from os import utime
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from typing import Iterable, TypedDict
+from typing import Iterable, NotRequired, TypedDict
 
 import respx
 from httpx import Request, Response
@@ -12,13 +13,24 @@ from mgost.api.schemas.mgost import (
 )
 
 from ...utils import BASE_URL
+from .exit_checkers import assert_new_files_created, assert_synced
 from .routes import Routes
 from .side_effects import FileMethods
-from .sync_check import assert_synced
 
 
-class APIFileInfo(TypedDict):
+class CustomizableProjectFile(TypedDict):
+    project_id: NotRequired[int]
     path: str
+    created: NotRequired[datetime]
+    modified: NotRequired[datetime]
+    size: NotRequired[int]
+
+
+class ExitChecks(enum.IntFlag):
+    SYNCED = enum.auto()
+    NEW_LOCAL_FILES_CREATED = enum.auto()
+
+    NONE = 0
 
 
 class EnvironmentHelper:
@@ -30,6 +42,9 @@ class EnvironmentHelper:
         'temp_dir_local',
         'routes',
         'file_methods',
+        'new_local_files',
+        'new_projects',
+        'exit_checks'
     )
     respx_mock: respx.MockRouter
     project: ProjectExtended
@@ -38,6 +53,11 @@ class EnvironmentHelper:
     temp_dir_local: TemporaryDirectory | None
     routes: Routes
     file_methods: FileMethods
+    new_local_files: list[CustomizableProjectFile]
+    new_projects: list[Project]
+    exit_checks: ExitChecks
+
+    MD_EXAMPLE_SIZE = 200
 
     def __init__(
         self,
@@ -45,6 +65,8 @@ class EnvironmentHelper:
         project: ProjectExtended,
         local_files: Iterable[ProjectFile],
         requirements: list[FileRequirement] | None = None,
+        new_local_files: list[CustomizableProjectFile] | None = None,
+        exit_checks: ExitChecks = ExitChecks.SYNCED
     ) -> None:
         assert isinstance(respx_mock, respx.MockRouter)
         assert project is None or isinstance(project, ProjectExtended)
@@ -52,6 +74,13 @@ class EnvironmentHelper:
             requirements = []
         assert isinstance(requirements, list)
         assert all((isinstance(r, FileRequirement) for r in requirements))
+        if new_local_files is None:
+            new_local_files = []
+        assert isinstance(new_local_files, list)
+        assert all((isinstance(
+            i, dict
+        ) for i in new_local_files))
+        assert isinstance(exit_checks, ExitChecks)
         self.respx_mock = respx_mock
         self.project = project
         self.local_files = {Path(f.path): f for f in local_files}
@@ -59,6 +88,9 @@ class EnvironmentHelper:
         self.temp_dir_local = None
         self.routes = Routes()
         self.file_methods = FileMethods(self)
+        self.new_local_files = new_local_files
+        self.new_projects = []
+        self.exit_checks = exit_checks
 
     async def __aenter__(self) -> None:
         assert self.temp_dir_local is None
@@ -69,7 +101,11 @@ class EnvironmentHelper:
     async def __aexit__(self, exc, value, tb) -> None:
         assert self.temp_dir_local is not None
         if exc is None:
-            assert_synced(self)
+            if self.exit_checks & ExitChecks.SYNCED:
+                assert_synced(self)
+            if self.exit_checks & ExitChecks.NEW_LOCAL_FILES_CREATED:
+                assert_new_files_created(self)
+
         self.temp_dir_local.__exit__(exc, value, tb)
         self.temp_dir_local = None
 
@@ -93,7 +129,7 @@ class EnvironmentHelper:
             if file.path == path:
                 return file
 
-    async def project_render(self, request: Request) -> Response:
+    async def route_project_render(self, request: Request) -> Response:
         p = 'output.docx'
         existing_file = self._file_from_path(p)
         if existing_file:
@@ -112,7 +148,34 @@ class EnvironmentHelper:
                 max_log_level=0,
                 finished=True,
                 logs=[]
-            )
+            ).model_dump(mode='json')
+        )
+
+    async def route_project_put(self, request: Request) -> Response:
+        project_id = len(self.new_projects) + 2  # 0/1 reserved
+        name = request.url.params.get('project_name', None)
+        assert name is not None
+        assert isinstance(name, str)
+        return Response(
+            status_code=200,
+            json=Project(
+                name=name,
+                id=project_id,
+                created=datetime.now(),
+                modified=datetime.now()
+            ).model_dump(mode='json')
+        )
+
+    async def _route_examples(self, request: Request) -> Response:
+        name = request.url.params.get('name', None)
+        assert name is not None, request.url
+        assert name == 'init', request.url
+        type = request.url.params.get('type', None)
+        assert type is not None, request.url
+        assert type == 'md', request.url
+        return Response(
+            status_code=200,
+            content='0' * self.MD_EXAMPLE_SIZE
         )
 
     def _get_route_and_side_effect(
@@ -150,6 +213,9 @@ class EnvironmentHelper:
                 modified=self.project.modified
             ).model_dump(mode='json')
         ])
+        self.routes._project_put = self.respx_mock.put(
+            f"{BASE_URL}/mgost/project"
+        ).mock(side_effect=self.route_project_put)
         self.routes._project = self.respx_mock.get(
             f"{BASE_URL}/mgost/project/{self.project.id}"
         ).respond(status_code=200, json=self.project.model_dump(mode='json'))
@@ -171,7 +237,10 @@ class EnvironmentHelper:
         })
         self.routes._project_render = self.respx_mock.get(
             f"{BASE_URL}/mgost/project/{self.project.id}/render"
-        ).mock(side_effect=self.project_render)
+        ).mock(side_effect=self.route_project_render)
+        self.routes._examples = self.respx_mock.get(
+            f"{BASE_URL}/mgost/examples"
+        ).mock(side_effect=self._route_examples)
 
         cloud_paths: set[Path] = {Path(i.path) for i in self.project.files}
         local_paths: set[Path] = set(self.local_files.keys())

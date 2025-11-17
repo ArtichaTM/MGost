@@ -48,7 +48,6 @@ async def _method_normal(
     assert isinstance(cache, dict)
     assert isinstance(request, APIRequestInfo)
     assert request.response_file_path is None
-    assert request.request_file_path is None
     assert not request.with_progress()
     key = (request.method, request.url, request.params)
     try:

@@ -72,3 +72,18 @@ def assert_synced(env: 'EnvironmentHelper') -> None:
             f"Size diff for {file.path}, "
             f"{local_size} vs {cloud_size}"
         )
+
+
+def assert_new_files_created(env: 'EnvironmentHelper') -> None:
+    assert env.temp_dir_local is not None
+    local_path = Path(env.temp_dir_local.name)
+    for new_local_file in env.new_local_files:
+        path = new_local_file['path']
+        full_path = local_path / path
+        assert full_path.exists()
+        assert full_path.is_file()
+        stat = full_path.lstat()
+        if (modified := new_local_file.get('modified', None)):
+            assert stat.st_mtime == modified.timestamp()
+        if (size := new_local_file.get('size', None)):
+            assert stat.st_size == size

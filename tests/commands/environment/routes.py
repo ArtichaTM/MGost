@@ -64,9 +64,11 @@ class _RoutesFile:
 class Routes:
     _projects: respx.Route | None = None
     _project: respx.Route | None = None
+    _project_put: respx.Route | None = None
     _project_files: respx.Route | None = None
     _project_requirements: respx.Route | None = None
     _project_render: respx.Route | None = None
+    _examples: respx.Route | None = None
     file: _RoutesFile = field(default_factory=_RoutesFile)
 
     @property
@@ -78,6 +80,11 @@ class Routes:
     def project(self) -> respx.Route:
         assert self._project is not None
         return self._project
+
+    @property
+    def project_put(self) -> respx.Route:
+        assert self._project_put is not None
+        return self._project_put
 
     @property
     def project_files(self) -> respx.Route:
@@ -94,6 +101,11 @@ class Routes:
         assert self._project_render is not None
         return self._project_render
 
+    @property
+    def examples(self) -> respx.Route:
+        assert self._examples is not None
+        return self._examples
+
     def _yield_routes(self) -> Generator[respx.Route, None, None]:
         yield self.project
         yield self.project_files
@@ -109,7 +121,6 @@ class Routes:
         should_be_called = {route.pattern for route in routes}
         for route in self._yield_routes():
             assert isinstance(route, respx.Route)
-            print(f"Comparing {route.pattern}")
             if route.pattern in should_be_called:
                 assert route.called, (
                     f"Route is not called when should: {route}"

@@ -252,19 +252,9 @@ class MGost:
         if replace_md:
             example = await self.api.download_example()
             md_path.write_bytes(example)
-            assert self.info.settings.project_id is not None
-            await self.api.upload(
-                project_id=self.info.settings.project_id,
-                root_path=self.project_root,
-                path=md_path,
-                overwrite=False
-            )
 
         Console\
             .echo('Проект "')\
             .echo(f'{self.info.settings.project_name}', fg='green')\
             .echo('" инициализирован.')\
-            .nl()\
-            .echo('Используйте ')\
-            .echo('mgost sync', fg='blue')\
-            .echo('для синхронизации проекта')
+            .nl()
