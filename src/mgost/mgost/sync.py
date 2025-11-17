@@ -46,7 +46,9 @@ def _compare_file_to(
             Path(filename).suffix
         )
         return extensions[0] == extensions[1]
-    if birth_time is not None and stat.st_birthtime == birth_time:
+    if birth_time is not None\
+            and stat.st_birthtime is not None\
+            and stat.st_birthtime == birth_time:
         return True
     if size is not None and stat.st_size == size:
         return True
