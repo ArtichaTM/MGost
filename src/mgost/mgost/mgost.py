@@ -119,7 +119,9 @@ class MGost:
             try:
                 with Progress() as progress:
                     await self.api.download(
-                        project.id, project.path_to_docx,
+                        project_id=project.id,
+                        root_path=self.project_root,
+                        path=project.path_to_docx,
                         overwrite_ok=True,
                         progress=progress
                     )
@@ -250,8 +252,10 @@ class MGost:
             md_path.write_bytes(example)
             assert self.info.settings.project_id is not None
             await self.api.upload(
-                self.info.settings.project_id,
-                md_path, overwrite=False
+                project_id=self.info.settings.project_id,
+                root_path=self.project_root,
+                path=md_path,
+                overwrite=False
             )
 
         Console\
