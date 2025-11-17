@@ -17,8 +17,8 @@ def api_request(
     request: APIRequestInfo,
 ) -> Awaitable[Response]:
     assert isinstance(client, AsyncClient)
-    assert request.url.startswith('/')
     assert isinstance(request.url, str)
+    assert request.url.startswith('/')
     assert request.request_file_path is None or \
         request.request_file_path.is_absolute()
     assert request.response_file_path is None or \
@@ -102,10 +102,14 @@ def _method_progress(
 
 async def _file_chunker(
     file_path: AsyncPath,
-    chunk_size=65536,
+    chunk_size: int = 65536,
     progress: Progress | None = None,
     task_id: TaskID | None = None
 ):
+    assert isinstance(file_path, AsyncPath)
+    assert isinstance(chunk_size, int)
+    assert progress is None or isinstance(progress, Progress)
+    assert task_id is None or isinstance(task_id, int)
     async with file_path.open('rb') as file:
         if progress is None:
             while chunk := await file.read(chunk_size):

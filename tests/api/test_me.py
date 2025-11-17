@@ -32,7 +32,6 @@ async def test_me_correct(respx_mock: respx.MockRouter):
 
     assert route.called
     assert route.call_count == 1
-
     assert mock_token_info == token_info
 
 

@@ -13,6 +13,7 @@ class BytesOrIntColumn(ProgressColumn):
     @staticmethod
     def _hs(n: int | float) -> str:
         """human_size"""
+        assert isinstance(n, (int, float))
         n = float(n)
         for unit in ("B", "KB", "MB", "GB", "TB"):
             if n < 1024:
@@ -21,13 +22,14 @@ class BytesOrIntColumn(ProgressColumn):
         return f"{n:.2f} PB"
 
     def render(self, task: Task) -> RenderableType:
+        assert isinstance(task, Task)
         show = task.fields.get("bytes", False)
         completed = task.completed
         total = task.total
-        assert isinstance(completed, int)
-        if not show or task.total is None:
+        assert isinstance(completed, (int, float))
+        if not show:
             assert total is None or isinstance(total, int)
-            return Text(f"{completed}/{total}")
+            return Text(f"{completed}/{total if total else '?'}")
         else:
             return Text(
                 f"{self._hs(completed)}"

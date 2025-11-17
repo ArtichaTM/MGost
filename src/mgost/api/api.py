@@ -42,8 +42,8 @@ class ArtichaAPI:
         /,
         base_url: str | None = None
     ) -> None:
-        assert base_url is None or isinstance(base_url, str)
         assert isinstance(api_token, str)
+        assert base_url is None or isinstance(base_url, str)
         if base_url is None:
             base_url = self._host
         assert base_url is not None
@@ -79,6 +79,7 @@ class ArtichaAPI:
     def method(
         self, request: APIRequestInfo
     ) -> Awaitable[Response]:
+        assert isinstance(request, APIRequestInfo)
         assert self._client is not None
         return api_request(
             client=self._client,
@@ -124,6 +125,8 @@ class ArtichaAPI:
         name: str = 'init',
         type: Literal['md', 'docx'] = 'md'
     ) -> bytes:
+        assert isinstance(name, str)
+        assert type in {'md', 'docx'}
         resp = await self.method(APIRequestInfo(
             'GET', '/mgost/examples',
             {
@@ -164,6 +167,7 @@ class ArtichaAPI:
     async def project_requirements(
         self, project_id
     ) -> dict[str, schemas.FileRequirement]:
+        assert isinstance(project_id, int)
         resp = await self.method(APIRequestInfo(
             'GET', f'/mgost/project/{project_id}/requirements'
         ))
@@ -201,6 +205,8 @@ class ArtichaAPI:
         overwrite: bool,
         progress: Progress | None = None
     ) -> None:
+        assert root_path.is_absolute()
+        assert not path.is_absolute()
         assert isinstance(project_id, int)
         assert isinstance(path, Path)
         assert isinstance(overwrite, bool)
@@ -241,6 +247,8 @@ class ArtichaAPI:
         overwrite_ok: bool = True,
         progress: Progress | None = None
     ) -> None:
+        assert root_path.is_absolute()
+        assert not path.is_absolute()
         assert isinstance(project_id, int)
         assert isinstance(root_path, Path)
         assert isinstance(path, Path)
@@ -265,6 +273,9 @@ class ArtichaAPI:
         old_path: Path,
         new_path: Path
     ) -> bool:
+        assert root_path.is_absolute()
+        assert not old_path.is_absolute()
+        assert not new_path.is_absolute()
         assert not new_path.is_relative_to(root_path)
         assert not old_path.is_relative_to(root_path)
         old_path_str = str(old_path).replace('\\', '/')

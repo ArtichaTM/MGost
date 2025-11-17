@@ -28,13 +28,13 @@ class MGost:
         self,
         root_path: Path
     ) -> None:
-        self._root_path = root_path
+        self._root_path = root_path.resolve().absolute()
         self._info = None
         self._api = None
 
     async def __aenter__[T: MGost](self: T) -> T:
         assert self._info is None
-        self._info = MGostInfo.load(self._root_path / '.mgost')
+        self._info = MGostInfo.load(self.project_root / '.mgost')
         self._api = ArtichaAPI(self._info.api_key.api_key)
         await self._api.__aenter__()
         return self
@@ -42,7 +42,7 @@ class MGost:
     async def __aexit__(self, *_):
         assert self._info is not None
         assert self._api is not None
-        self._info.save(self._root_path / '.mgost')
+        self._info.save(self.project_root / '.mgost')
         await self._api.__aexit__()
 
     @property
@@ -56,6 +56,11 @@ class MGost:
         assert self._api is not None, "MGost should be"\
             " initialized as context manager"
         return self._api
+
+    @property
+    def project_root(self) -> Path:
+        assert isinstance(self._root_path, Path)
+        return self._root_path
 
     async def sync_files(self) -> None:
         return await sync(self)
@@ -223,14 +228,14 @@ class MGost:
         Console\
             .edit()\
             .echo('Начинаю создание проекта в папке "')\
-            .echo(str(self._root_path.resolve().name), fg="green")\
+            .echo(str(self.project_root.resolve().name), fg="green")\
             .echo('"')\
             .nl()
         while True:
             await self._pick_project_name()
             if self.info.settings.project_name:
                 break
-        md_path = self._root_path / 'main.md'
+        md_path = self.project_root / 'main.md'
         replace_md = True
         if md_path.exists():
             answer = Console\
