@@ -42,8 +42,7 @@ async def test_only_md(respx_mock: respx.MockRouter):
                 modified=second_ago,
                 size=20
             ),
-        ],
-        requirements=[]
+        ]
     )
     async with env:
         pass
@@ -96,8 +95,7 @@ async def test_md_docx(respx_mock: respx.MockRouter):
                 modified=second_ago,
                 size=200
             ),
-        ],
-        requirements=[]
+        ]
     )
     async with env:
         pass

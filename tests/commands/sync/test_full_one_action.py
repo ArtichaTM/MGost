@@ -45,8 +45,7 @@ async def test_download(
                 ),
             ]
         ),
-        local_files=[],
-        requirements=[]
+        local_files=[]
     )
     async with env:
         assert env.temp_dir_local is not None
@@ -101,8 +100,7 @@ async def test_upload(
                 modified=second_ago,
                 size=21
             ),
-        ],
-        requirements=[]
+        ]
     )
     async with env:
         assert env.temp_dir_local is not None

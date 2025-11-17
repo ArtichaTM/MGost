@@ -44,10 +44,12 @@ class EnvironmentHelper:
         respx_mock: respx.MockRouter,
         project: ProjectExtended,
         local_files: Iterable[ProjectFile],
-        requirements: list[FileRequirement],
+        requirements: list[FileRequirement] | None = None,
     ) -> None:
         assert isinstance(respx_mock, respx.MockRouter)
         assert project is None or isinstance(project, ProjectExtended)
+        if requirements is None:
+            requirements = []
         assert isinstance(requirements, list)
         assert all((isinstance(r, FileRequirement) for r in requirements))
         self.respx_mock = respx_mock
