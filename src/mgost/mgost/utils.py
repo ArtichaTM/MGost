@@ -40,8 +40,8 @@ def _incorrect_project() -> None:
         .echo(" в облаке.")\
         .nl()\
         .echo("Воспользуйтесь ")\
-        .echo('mgost init', fg='cyan')\
-        .echo(' для инициализации проекта')\
+        .echo('mgost init', italic=True, underline=True)\
+        .echo(' для инициализации проекта.')\
         .force_nl()
 
 

@@ -195,8 +195,10 @@ class MGost:
         mapping = {i: proj for i, proj in enumerate(projects, 1)}
         Console\
             .nl()\
-            .echo('Создать новый проект или ')\
-            .echo('синхронизировать', fg='blue')\
+            .echo('Создать ')\
+            .echo('новый проект', fg="green")\
+            .echo(' или ')\
+            .echo('синхронизировать', fg='cyan')\
             .echo(' существующий?')\
             .nl()
         Console\
