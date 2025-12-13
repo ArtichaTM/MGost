@@ -9,7 +9,7 @@ packages = [
 
 [project]
 name = "MGost"
-version = "0.4.10"
+version = "0.4.11"
 authors = [
   {name="Геворкян Артём", email="tima-1324@mail.ru"}
 ]
@@ -18,7 +18,7 @@ readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]
 keywords = ["ArtichaSite", "api"]
-requires-python = ">=3.13"
+requires-python = ">=3.13, <3.14"
 dependencies = [
     "aiofiles>=25.1.0",
     "aiopath>=0.7.7",
