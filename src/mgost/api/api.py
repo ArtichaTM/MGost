@@ -25,7 +25,7 @@ class ArtichaAPI:
         '_cache',
         '_base_url',
     )
-    _host: str = 'https://articha.ru/api'
+    _host: str = 'https://articha.tplinkdns.com/api'
     _base_url: str
     _token: str
     _client: AsyncClient | None
