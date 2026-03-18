@@ -169,7 +169,7 @@ class MGostInfo:
         if not path.parent.exists():
             return
         with path.open('w', encoding='utf-8') as f:
-            json.dump(obj, f, indent=indent)
+            json.dump(obj, f, indent=indent, ensure_ascii=False)
 
     @classmethod
     def load[T: MGostInfo](cls: type[T], path: Path) -> T:
