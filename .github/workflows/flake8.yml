@@ -15,6 +15,6 @@ jobs:
     - name: Install pinned Python
       run: uv python install
     - name: Sync project
-      run: uv sync --group tests
+      run: uv sync --dev
     - name: Testing code flake8
       run: uv run -m flake8

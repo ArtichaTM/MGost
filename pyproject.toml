@@ -52,7 +52,7 @@ repository = "https://github.com/ArtichaTM/MGost"
 mgost = "mgost:main"
 
 [dependency-groups]
-tests = [
+dev = [
     "coverage>=7.11.0",
     "flake8>=7.3.0",
     "pytest-asyncio>=1.2.0",

@@ -3,6 +3,7 @@
         "**/__pycache__": true,
         ".venv": true,
         "uv.lock": true,
+        ".pytest_cache": true,
     },
     "cSpell.words": [
         "ARTICHAAPI",
