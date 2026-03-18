@@ -1,6 +1,7 @@
 from importlib import metadata as importlib_metadata
 from pathlib import Path
 
+from mgost.api.remote_version import get_remote_version
 from mgost.console import Console
 from mgost.mgost import MGost
 from mgost.mgost.sync import SyncError
@@ -10,11 +11,42 @@ __all__ = ('version', 'token', 'init', 'sync', 'render')
 
 
 async def version():
+    version = importlib_metadata.version('mgost')
     Console\
         .echo("MGost версии ")\
-        .echo(importlib_metadata.version('mgost'), fg="green")\
+        .echo(version, fg="green")\
         .nl()\
-        .finalize()
+        .echo('Проверка новой версии...')\
+        .nl()\
+
+    remote_version = get_remote_version()
+    if remote_version is None:
+        Console\
+            .edit()\
+            .echo("Таймаут, pypi недоступен")\
+            .finalize()
+        return
+    if version == remote_version:
+        Console\
+            .edit()\
+            .echo(
+                "У вас самая последняя версия",
+                fg="green"
+            )\
+            .finalize()
+    else:
+        Console\
+            .edit()\
+            .echo("Есть более новая версия ")\
+            .echo(
+                remote_version,
+                fg="yellow"
+            )\
+            .nl()\
+            .echo("Обновите, используя команду ")\
+            .echo("uvx mgost@latest", fg='cyan')\
+            .nl()\
+            .finalize()
 
 
 async def token(
