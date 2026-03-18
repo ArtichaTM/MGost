@@ -255,6 +255,7 @@ class ArtichaAPI:
         assert isinstance(overwrite_ok, bool)
         full_path = root_path / path
         path_str = str(path).replace('\\', '/')
+        full_path.parent.mkdir(parents=True, exist_ok=True)
         resp = await self.method(APIRequestInfo(
             'GET', f'/mgost/project/{project_id}/files/{path_str}',
             response_file_path=AsyncPath(full_path),

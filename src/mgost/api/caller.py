@@ -163,6 +163,8 @@ async def _method_progress_download(
     ) as resp:
         if 'content-length' in resp.headers:
             total = int(resp.headers['content-length'])
+        if 'size' in resp.headers:
+            total = int(resp.headers['size'])
         request.progress.update(
             task,
             total=total,
