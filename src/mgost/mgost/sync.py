@@ -153,10 +153,14 @@ async def sync_file(
             )
             if new_path is None:
                 Console\
+                    .edit()\
                     .echo("Требуется файл ")\
                     .echo(f"{path}", fg="cyan")\
-                    .echo(", однако он не найден ни локально")\
-                    .echo(", ни в облаке")
+                    .echo(", однако он ")\
+                    .echo("не найден", fg="red")\
+                    .echo(" ни локально, ни в облаке")\
+                    .force_nl()\
+                    .finalize()
                 return DoNothing()
             return FileMovedLocally(
                 mgost.project_root, project_id,
