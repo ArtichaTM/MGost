@@ -102,7 +102,9 @@ class ArtichaAPI:
             info = resp.json()
             assert 'detail' in info
             return info['detail']
-        except ConnectError:
+        except ConnectError as e:
+            if e.args[0] == 'All connection attempts failed':
+                raise TimeoutError
             return "Ошибка подключения: сайт недоступен"
 
     async def me(self) -> schemas.TokenInfo:

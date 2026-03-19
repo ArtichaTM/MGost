@@ -39,11 +39,22 @@ class MGost:
         await self._api.__aenter__()
         return self
 
-    async def __aexit__(self, *_):
+    async def __aexit__(
+        self,
+        exc_type: type[Exception] | None,
+        *_
+    ):
         assert self._info is not None
         assert self._api is not None
         self._info.save(self.project_root / '.mgost')
         await self._api.__aexit__()
+        if exc_type is not None and issubclass(exc_type, TimeoutError):
+            Console\
+                .echo("Сервер ")\
+                .echo("недоступен", fg='red', underline=True)\
+                .echo(". Попробуйте позже")\
+                .nl()
+            return True
 
     @property
     def info(self) -> MGostInfo:

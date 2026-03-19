@@ -106,7 +106,24 @@ class ApiKeyHolder:
                 "вышеперечисленные источники"
             )\
             .nl()
-        value = Console.prompt(self.API_TOKEN_KEY, prompt_suffix='=')
+        while True:
+            value: str = Console.prompt(
+                self.API_TOKEN_KEY, prompt_suffix='=',
+                type=str
+            )
+            if not value.isascii():
+                Console\
+                    .echo("Токен содержит ")\
+                    .echo(
+                        "некорректные",
+                        fg="red",
+                        underline=True,
+                    )\
+                    .echo(" символы")\
+                    .nl()
+                continue
+            break
+
         self.source = API_KEY_SOURCE.PROMPT
         self.api_key = value
 
