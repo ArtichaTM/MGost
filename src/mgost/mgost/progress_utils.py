@@ -33,6 +33,6 @@ class BytesOrIntColumn(ProgressColumn):
         else:
             return Text(
                 f"{self._hs(completed)}"
-                '/'
+                ' / '
                 f"{self._hs(total) if total else '?'}"
             )
