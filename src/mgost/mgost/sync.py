@@ -8,7 +8,8 @@ from rich.progress import BarColumn, Progress, TaskID, TextColumn
 
 from mgost.api.actions import (
     Action, DoNothing, DownloadFileAction, FileMovedLocally,
-    MGostCompletableAction, MoveAction, UploadFileAction
+    MGostCompletableAction, MoveAction, PostProgressAction,
+    PostProgressMessageAction, UploadFileAction
 )
 from mgost.console import Console
 
@@ -152,16 +153,26 @@ async def sync_file(
                 filename=path.name
             )
             if new_path is None:
-                Console\
-                    .edit()\
-                    .echo("Требуется файл ")\
-                    .echo(f"{path}", fg="cyan")\
-                    .echo(", однако он ")\
-                    .echo("не найден", fg="red")\
-                    .echo(" ни локально, ни в облаке")\
-                    .force_nl()\
-                    .finalize()
-                return DoNothing()
+                def error_console():
+                    Console\
+                        .echo("Требуется файл ")\
+                        .echo(f"{path}", fg="cyan")\
+                        .echo(", однако он ")\
+                        .echo("не найден", fg="red")\
+                        .echo(" ни локально, ни в облаке")\
+                        .force_nl()
+                assert mgost.info.settings.project_id is not None
+                return PostProgressMessageAction(
+                    root_path=mgost.project_root,
+                    project_id=mgost.info.settings.project_id,
+                    path=path,
+                    progress_message=(
+                        f'Требуется файл {path}, '
+                        'однако он не найден '
+                        'ни локально, ни в облаке'
+                    ),
+                    console_message=error_console
+                )
             return FileMovedLocally(
                 mgost.project_root, project_id,
                 path, new_path
@@ -279,3 +290,12 @@ async def sync(mgost: 'MGost') -> None:
         )))
 
         await gather(*tasks)
+
+    if not actions:
+        return
+
+    tasks.clear()
+    for action in actions:
+        if isinstance(action, PostProgressAction):
+            tasks.append(create_task(action.progress_finished()))
+    await gather(*tasks)

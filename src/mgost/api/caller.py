@@ -1,6 +1,7 @@
 from asyncio import sleep
 from functools import partial
 from json import JSONDecodeError
+from pathlib import Path
 from typing import Awaitable
 
 from aiopath import AsyncPath
@@ -126,8 +127,11 @@ async def _method_progress_upload(
 ) -> Response:
     assert request.request_file_path is not None
     assert request.progress is not None
+    path = Path().resolve()
+    assert request.request_file_path.is_relative_to(path)
+    path = request.request_file_path.relative_to(path)
     task_id = request.progress.add_task(
-        description=f"↑ {request.request_file_path}",
+        description=f"↑ {path}",
         total=(await request.request_file_path.lstat()).st_size,
         visible=True,
         bytes=True
@@ -150,8 +154,11 @@ async def _method_progress_download(
 ) -> Response:
     assert request.response_file_path is not None
     assert request.progress is not None
+    path = Path().resolve()
+    assert request.response_file_path.is_relative_to(path)
+    path = request.response_file_path.relative_to(path)
     task = request.progress.add_task(
-        description=f"↓ {request.response_file_path}",
+        description=f"↓ {path}",
         visible=True,
         refresh=True,
         bytes=True

@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Callable
 
 from rich.progress import Progress
 
@@ -14,6 +14,13 @@ if TYPE_CHECKING:
 @dataclass(frozen=True, slots=True)
 class Action(ABC):
     pass
+
+
+@dataclass(frozen=True, slots=True)
+class PostProgressAction(ABC):
+    @abstractmethod
+    async def progress_finished(self) -> None:
+        raise NotImplementedError()
 
 
 @dataclass(frozen=True, slots=True)
@@ -58,6 +65,30 @@ class MoveAction(PathAction, ABC):
 class DoNothing(APICompletableAction):
     async def complete_api(self, api, progress=None):
         pass
+
+
+@dataclass(frozen=True, slots=True)
+class PostProgressMessageAction(
+    APICompletableAction,
+    PathAction,
+    PostProgressAction
+):
+    progress_message: str
+    console_message: Callable[[], None]
+
+    async def complete_api(self, api, progress=None):
+        if progress is not None:
+            progress.add_task(
+                description=f"? {self.path}",
+                visible=True,
+                refresh=True,
+                bytes=False,
+                total=0,
+                completed=0
+            )
+
+    async def progress_finished(self) -> None:
+        self.console_message()
 
 
 @dataclass(frozen=True, slots=True)
