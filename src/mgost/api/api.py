@@ -230,7 +230,7 @@ class ArtichaAPI:
         path_str = self._path_to_url(path)
         if overwrite:
             await self.method(APIRequestInfo(
-                'POST',
+                'PUT',
                 f'/mgost/project/{project_id}/files/{path_str}',
                 params=params,
                 root_path=root_path,
@@ -239,7 +239,7 @@ class ArtichaAPI:
             ))
         else:
             await self.method(APIRequestInfo(
-                'PUT',
+                'POST',
                 f'/mgost/project/{project_id}/files/{path_str}',
                 params=params,
                 root_path=root_path,

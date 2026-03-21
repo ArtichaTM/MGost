@@ -115,6 +115,6 @@ async def test_upload(
             env.routes.project,
             env.routes.project_requirements,
             env.routes.project_files,
-            env.routes.file.new.put[Path('main.md')],
-            env.routes.file.new.put[Path('output.docx')]
+            env.routes.file.new.post[Path('main.md')],
+            env.routes.file.new.post[Path('output.docx')]
         )
