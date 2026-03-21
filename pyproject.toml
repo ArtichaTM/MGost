@@ -54,10 +54,16 @@ mgost = "mgost:main"
 [dependency-groups]
 dev = [
     "coverage>=7.11.0",
-    "flake8>=7.3.0",
     "pytest-asyncio>=1.2.0",
     "respx>=0.22.0",
+    "ruff>=0.15.7",
 ]
 
 [tool.isort]
 multi_line_output = 5
+
+[tool.ruff]
+include = ["pyproject.toml", "src/mgost/*.py", "tests/**/*.py"]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"]

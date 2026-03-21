@@ -16,5 +16,5 @@ jobs:
       run: uv python install
     - name: Sync project
       run: uv sync --dev
-    - name: Testing code flake8
-      run: uv run -m flake8
+    - name: Testing code with ruff
+      run: uv run -m ruff check
