@@ -55,6 +55,10 @@ class PathAction(Action, ABC):
     project_id: int
     path: Path
 
+    def __post_init__(self) -> None:
+        assert self.root_path.is_absolute()
+        assert not self.path.is_absolute()
+
 
 @dataclass(frozen=True, slots=True)
 class MoveAction(PathAction, ABC):

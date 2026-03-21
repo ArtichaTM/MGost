@@ -90,6 +90,10 @@ class ArtichaAPI:
     def _invalidate_cache(self) -> None:
         self._cache.clear()
 
+    @staticmethod
+    def _path_to_url(path: Path) -> str:
+        return str(path).replace('\\', '/')
+
     async def validate_token(self) -> str | schemas.TokenInfo:
         await self._client_refresh()
         try:
@@ -193,8 +197,9 @@ class ArtichaAPI:
     async def create_project(self, name: str) -> int:
         assert isinstance(name, str)
         resp = await self.method(APIRequestInfo(
-            'PUT', '/mgost/project',
-            {'project_name': name}
+            method='PUT',
+            url='/mgost/project',
+            params={'project_name': name}
         ))
         self._invalidate_cache()
         return resp.json()['id']
@@ -222,12 +227,13 @@ class ArtichaAPI:
                 full_path.lstat().st_mtime, CURRENT_TIMEZONE
             )
         }
-        path_str = str(path).replace('\\', '/')
+        path_str = self._path_to_url(path)
         if overwrite:
             await self.method(APIRequestInfo(
                 'POST',
                 f'/mgost/project/{project_id}/files/{path_str}',
                 params=params,
+                root_path=root_path,
                 request_file_path=AsyncPath(full_path),
                 progress=progress
             ))
@@ -236,6 +242,7 @@ class ArtichaAPI:
                 'PUT',
                 f'/mgost/project/{project_id}/files/{path_str}',
                 params=params,
+                root_path=root_path,
                 request_file_path=AsyncPath(full_path),
                 progress=progress
             ))
@@ -249,17 +256,16 @@ class ArtichaAPI:
         overwrite_ok: bool = True,
         progress: Progress | None = None
     ) -> None:
-        assert root_path.is_absolute()
-        assert not path.is_absolute()
         assert isinstance(project_id, int)
         assert isinstance(root_path, Path)
         assert isinstance(path, Path)
         assert isinstance(overwrite_ok, bool)
         full_path = root_path / path
-        path_str = str(path).replace('\\', '/')
+        path_str = self._path_to_url(path)
         full_path.parent.mkdir(parents=True, exist_ok=True)
         resp = await self.method(APIRequestInfo(
             'GET', f'/mgost/project/{project_id}/files/{path_str}',
+            root_path=root_path,
             response_file_path=AsyncPath(full_path),
             progress=progress
         ))
@@ -281,12 +287,13 @@ class ArtichaAPI:
         assert not new_path.is_absolute()
         assert not new_path.is_relative_to(root_path)
         assert not old_path.is_relative_to(root_path)
-        old_path_str = str(old_path).replace('\\', '/')
-        new_path_str = str(new_path).replace('\\', '/')
+        old_path_str = self._path_to_url(old_path)
+        new_path_str = self._path_to_url(new_path)
         resp = await self.method(APIRequestInfo(
-            'PATCH',
-            f'/mgost/project/{project_id}/files/{old_path_str}',
-            {'target': new_path_str}
+            method='PATCH',
+            url=f'/mgost/project/{project_id}/files/{old_path_str}',
+            root_path=root_path,
+            params={'target': new_path_str}
         ))
         self._invalidate_cache()
         return schemas.Message(**resp.json()).is_ok()

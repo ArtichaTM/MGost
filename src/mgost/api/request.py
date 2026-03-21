@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from pathlib import Path
 
 from aiopath import AsyncPath
 from httpx import QueryParams
@@ -11,6 +12,7 @@ class APIRequestInfo:
     url: str
     params: QueryParams | dict | None = None
     progress: Progress | None = None
+    root_path: Path | None = None
     request_file_path: AsyncPath | None = None
     response_file_path: AsyncPath | None = None
 

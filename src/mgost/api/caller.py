@@ -1,7 +1,6 @@
 from asyncio import sleep
 from functools import partial
 from json import JSONDecodeError
-from pathlib import Path
 from typing import Awaitable
 
 from aiopath import AsyncPath
@@ -125,21 +124,26 @@ async def _method_progress_upload(
     client: AsyncClient,
     request: APIRequestInfo
 ) -> Response:
-    assert request.request_file_path is not None
     assert request.progress is not None
-    path = Path().resolve()
-    assert request.request_file_path.is_relative_to(path)
-    path = request.request_file_path.relative_to(path)
+
+    path = request.request_file_path
+    root_path = request.root_path
+    assert root_path is not None
+    assert path is not None
+    assert path.is_relative_to(root_path)
+    full_path = path
+    path = path.relative_to(root_path)
+
     task_id = request.progress.add_task(
         description=f"↑ {path}",
-        total=(await request.request_file_path.lstat()).st_size,
+        total=(await full_path.lstat()).st_size,
         visible=True,
         bytes=True
     )
     response = await client.request(
         request.method, request.url,
         content=_file_chunker(
-            request.request_file_path,
+            full_path,
             progress=request.progress,
             task_id=task_id
         ),
@@ -152,11 +156,16 @@ async def _method_progress_download(
     client: AsyncClient,
     request: APIRequestInfo
 ) -> Response:
-    assert request.response_file_path is not None
     assert request.progress is not None
-    path = Path().resolve()
-    assert request.response_file_path.is_relative_to(path)
-    path = request.response_file_path.relative_to(path)
+
+    path = request.response_file_path
+    root_path = request.root_path
+    assert root_path is not None
+    assert path is not None
+    assert path.is_relative_to(root_path)
+    full_path = path
+    path = path.relative_to(root_path)
+
     task = request.progress.add_task(
         description=f"↓ {path}",
         visible=True,
@@ -177,7 +186,7 @@ async def _method_progress_download(
             total=total,
             refresh=True
         )
-        async with request.response_file_path.open('wb') as file:
+        async with full_path.open('wb') as file:
             async for chunk in resp.aiter_bytes():
                 request.progress.update(task, advance=len(chunk))
                 await file.write(chunk)

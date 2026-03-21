@@ -219,6 +219,7 @@ class EnvironmentHelper:
         self.routes._project = self.respx_mock.get(
             f"{BASE_URL}/mgost/project/{self.project.id}"
         ).respond(status_code=200, json=self.project.model_dump(mode='json'))
+
         self.routes._project_files = self.respx_mock.get(
             f"{BASE_URL}/mgost/project/{self.project.id}/files"
         ).respond(status_code=200, json=[
