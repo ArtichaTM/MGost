@@ -75,8 +75,8 @@ async def test_one_png(
             env.routes.project,
             env.routes.project_requirements,
             env.routes.project_files,
-            env.routes.file.existing.post[Path('main.md')],
-            env.routes.file.new.put[Path('image.png')]
+            env.routes.file.existing.put[Path('main.md')],
+            env.routes.file.new.post[Path('image.png')]
         )
 
 
@@ -144,6 +144,6 @@ async def test_one_png_with_directory(
             env.routes.project,
             env.routes.project_requirements,
             env.routes.project_files,
-            env.routes.file.existing.post[Path('main.md')],
-            env.routes.file.new.put[Path(req_path)]
+            env.routes.file.existing.put[Path('main.md')],
+            env.routes.file.new.post[Path(req_path)]
         )

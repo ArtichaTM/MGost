@@ -10,7 +10,9 @@ from .base import FileMethodsBase
 
 class ExistingFileMethods(FileMethodsBase):
     async def post(self, request: Request) -> Response:
-        raise AssertionError("App tries to POST existing file")
+        raise AssertionError(self._message(
+            "POST existing", request
+        ))
 
     async def put(self, request: Request) -> Response:
         path = self.env._file_path_from_url(request.url.path)

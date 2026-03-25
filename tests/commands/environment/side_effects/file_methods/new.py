@@ -10,6 +10,11 @@ from .base import FileMethodsBase
 
 class NewFileMethods(FileMethodsBase):
     async def put(self, request: Request) -> Response:
+        raise AssertionError(self._message(
+            "PUT non-existing", request
+        ))
+
+    async def post(self, request: Request) -> Response:
         path = self.env._file_path_from_url(request.url.path)
         file = self.env._file_from_path(request.url.path)
         assert file is None
@@ -33,14 +38,17 @@ class NewFileMethods(FileMethodsBase):
             json=file.model_dump(mode='json')
         )
 
-    async def post(self, request: Request) -> Response:
-        raise AssertionError("App tries to POST non-existing file")
-
     async def patch(self, request: Request) -> Response:
-        raise AssertionError("App tries to PATCH non-existing file")
+        raise AssertionError(self._message(
+            "PATCH non-existing", request
+        ))
 
     async def delete(self, request: Request) -> Response:
-        raise AssertionError("App tries to DELETE non-existing file")
+        raise AssertionError(self._message(
+            "DELETE non-existing", request
+        ))
 
     async def get(self, request: Request) -> Response:
-        raise AssertionError("App tries to GET non-existing file")
+        raise AssertionError(self._message(
+            "GET non-existing", request
+        ))

@@ -18,6 +18,9 @@ class FileMethodsBase(ABC):
         super().__init__()
         self.env = env
 
+    def _message(self, text: str, request: Request):
+        return f"App tries to {text} file {request.url}"
+
     @abstractmethod
     async def put(self, request: Request) -> Response:
         raise NotImplementedError()
