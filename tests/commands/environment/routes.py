@@ -133,5 +133,6 @@ class Routes:
                 )
             else:
                 assert not route.called, (
-                    f"Route is called when should not: {route}"
+                    "The path is called even though it shouldn't be: "
+                    f"{route.pattern}"
                 )
