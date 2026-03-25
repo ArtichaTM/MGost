@@ -8,6 +8,7 @@ from typing import Iterable, NotRequired, TypedDict
 import respx
 from httpx import Request, Response
 
+from mgost.api.schemas import TokenInfo
 from mgost.api.schemas.mgost import (
     BuildResult, FileRequirement, Project, ProjectExtended, ProjectFile
 )
@@ -190,19 +191,18 @@ class EnvironmentHelper:
             self.file_methods.get_side_effect(type, method)
         )
 
-    async def prepare_environment(self) -> None:
-        assert self.temp_dir_local is not None
-        root_folder = Path(self.temp_dir_local.name)
-
-        for local_file in self.local_files.values():
-            file_path = root_folder / local_file.path
-            file_path.parent.mkdir(exist_ok=True, parents=True)
-            file_path.write_text(data='0' * local_file.size)
-            utime(file_path, (
-                local_file.created.timestamp(),
-                local_file.modified.timestamp()
-            ))
-
+    def _prepare_environment_routes(self) -> None:
+        self.routes._me = self.respx_mock.get(
+            f"{BASE_URL}/me"
+        ).respond(
+            status_code=200,
+            json=TokenInfo(
+                name='Test',
+                owner='TestOwner',
+                created=datetime.now(),
+                modified=datetime.now()
+            ).model_dump(mode='json')
+        )
         self.routes._projects = self.respx_mock.get(
             f"{BASE_URL}/mgost/project"
         ).respond(status_code=200, json=[
@@ -242,6 +242,21 @@ class EnvironmentHelper:
         self.routes._examples = self.respx_mock.get(
             f"{BASE_URL}/mgost/examples"
         ).mock(side_effect=self._route_examples)
+
+    async def prepare_environment(self) -> None:
+        assert self.temp_dir_local is not None
+        root_folder = Path(self.temp_dir_local.name)
+
+        for local_file in self.local_files.values():
+            file_path = root_folder / local_file.path
+            file_path.parent.mkdir(exist_ok=True, parents=True)
+            file_path.write_text(data='0' * local_file.size)
+            utime(file_path, (
+                local_file.created.timestamp(),
+                local_file.modified.timestamp()
+            ))
+
+        self._prepare_environment_routes()
 
         cloud_paths: set[Path] = {Path(i.path) for i in self.project.files}
         local_paths: set[Path] = set(self.local_files.keys())

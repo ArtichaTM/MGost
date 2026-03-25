@@ -62,6 +62,7 @@ class _RoutesFile:
 
 @dataclass(slots=True, frozen=False)
 class Routes:
+    _me: respx.Route | None = None
     _projects: respx.Route | None = None
     _project: respx.Route | None = None
     _project_put: respx.Route | None = None
@@ -70,6 +71,11 @@ class Routes:
     _project_render: respx.Route | None = None
     _examples: respx.Route | None = None
     file: _RoutesFile = field(default_factory=_RoutesFile)
+
+    @property
+    def me(self) -> respx.Route:
+        assert self._me is not None
+        return self._me
 
     @property
     def projects(self) -> respx.Route:
