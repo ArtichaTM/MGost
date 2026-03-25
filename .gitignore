@@ -3,4 +3,5 @@ uv.lock
 dist
 .ruff_cache
 .coverage
+coverage.xml
 temp
