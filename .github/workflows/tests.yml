@@ -22,4 +22,4 @@ jobs:
     - name: Sync project
       run: uv sync --dev
     - name: Testing code with django test framework
-      run: uv run -m pytest
+      run: uv run -m pytest -n 2
