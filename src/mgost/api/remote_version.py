@@ -7,7 +7,7 @@ def get_remote_version(timeout: float = 1.) -> str | None:
             "https://pypi.org/pypi/mgost/json",
             timeout=timeout
         )
-    except TimeoutError:
+    except Exception:
         return
     data = response.json()
     assert data.get('message') != 'Not Found'

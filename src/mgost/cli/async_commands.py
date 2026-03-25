@@ -1,3 +1,4 @@
+import sys
 from importlib import metadata as importlib_metadata
 from pathlib import Path
 
@@ -15,6 +16,13 @@ async def version():
     Console\
         .echo("MGost версии ")\
         .echo(version, fg="green")\
+        .echo(
+            ' (py'
+            f"{sys.version_info.major}"
+            '.'
+            f"{sys.version_info.minor}"
+            ')'
+        )\
         .nl()\
         .echo('Проверка новой версии...')\
         .nl()\
@@ -23,17 +31,16 @@ async def version():
     if remote_version is None:
         Console\
             .edit()\
-            .echo("Таймаут, pypi недоступен")\
-            .finalize()
-        return
-    if version == remote_version:
+            .echo("Таймаут, pypi недоступен")
+    elif version == remote_version:
         Console\
             .edit()\
+            .echo('У вас ')\
             .echo(
-                "У вас самая последняя версия",
+                "самая последняя",
                 fg="green"
             )\
-            .finalize()
+            .echo(' версия')
     else:
         Console\
             .edit()\
@@ -45,8 +52,8 @@ async def version():
             .nl()\
             .echo("Обновите, используя команду ")\
             .echo("uvx mgost@latest", fg='cyan')\
-            .nl()\
-            .finalize()
+            .nl()
+    Console.finalize()
 
 
 async def token(
