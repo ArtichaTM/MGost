@@ -7,7 +7,7 @@
 
 После создания ключа можно запустить библиотеку напрямую через [uv](https://docs.astral.sh/uv/) (**Рекомендуется**):
 ```bash
-uvx mgost version
+uvx -p 3.13 mgost version
 ```
 
 Или через pip:
@@ -19,7 +19,7 @@ python3.13 -m mgost version
 ## Запуск
 Для инициализации папки для проекта используйте `mgost init`. Первый запуск запросит API токен:
 ```console
-$ uvx mgost init
+$ uvx -p 3.13 mgost init
 API ключ не найден ни в переменных среды, ни в .env.
 Введите код вручную или внесите его в вышеперечисленные источники
 ARTICHAAPI_TOKEN=
