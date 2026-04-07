@@ -2,7 +2,7 @@ from logging import getLogger
 
 import typer
 
-from mgost.settings.logger import init_logging
+from mgost.settings.logging import init_logging
 
 from .app import app
 

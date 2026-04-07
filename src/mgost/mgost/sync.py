@@ -177,26 +177,28 @@ async def sync_file(
                 mgost.project_root, project_id,
                 path, new_path
             )
-
+    assert False
 
 async def complete_with_progress(
     mgost: 'MGost',
     action: MGostCompletableAction,
-    progress: Progress,
-    main_task: TaskID
+    progress: Progress | None,
+    main_task: TaskID | None
 ) -> None:
     assert isinstance(action, MGostCompletableAction)
     assert isinstance(progress, Progress)
     assert isinstance(main_task, int)
     await action.complete_mgost(mgost, progress)
-    progress.advance(main_task)
+    if progress:
+        assert main_task is not None
+        progress.advance(main_task)
 
 
 async def _sync_non_requirements_file(
     mgost: 'MGost',
     file: Literal['md'] | Literal['docx'],
-    progress: Progress,
-    main_task: TaskID
+    progress: Progress | None,
+    main_task: TaskID | None
 ) -> None:
     assert file in {'md', 'docx'}
     project_id = mgost.info.settings.project_id
@@ -224,7 +226,9 @@ async def _sync_non_requirements_file(
                 mgost.info.settings.docx_path = action.new_path
             case _:
                 raise RuntimeError((file, action))
-    progress.advance(main_task)
+    if progress:
+        assert main_task is not None
+        progress.advance(main_task)
 
 
 async def sync(mgost: 'MGost') -> None:
@@ -245,11 +249,17 @@ async def sync(mgost: 'MGost') -> None:
         BarColumn(),
         BytesOrIntColumn()
     ) as progress:
-        main_task = progress.add_task(
-            description="Синхронизация",
-            total=2,
-            start=True
-        )
+        # If silent mode, remove progress
+        if Console.is_silent:
+            main_task = None
+            progress = None
+        else:
+            main_task = progress.add_task(
+                description="Синхронизация",
+                total=2,
+                start=True
+            )
+        assert progress is None or isinstance(progress, Progress)
 
         # Reusable variable
         await _sync_non_requirements_file(
@@ -259,11 +269,13 @@ async def sync(mgost: 'MGost') -> None:
         project_requirements = await mgost.api.project_requirements(
             project_id
         )
-        progress.update(
-            main_task,
-            total=2 + len(project_requirements),
-            refresh=True,
-        )
+        if progress:
+            assert main_task is not None
+            progress.update(
+                main_task,
+                total=2 + len(project_requirements),
+                refresh=True,
+            )
 
         actions: list[Action] = []
         for requirement in project_requirements:
@@ -275,13 +287,17 @@ async def sync(mgost: 'MGost') -> None:
         tasks: list[Task] = []
         for action in actions:
             assert isinstance(action, MGostCompletableAction)
-            task = create_task(
-                complete_with_progress(
+            if progress:
+                coro = complete_with_progress(
                     mgost=mgost,
                     action=action,
                     progress=progress,
                     main_task=main_task
-                ),
+                )
+            else:
+                coro = action.complete_mgost(mgost)
+            task = create_task(
+                coro=coro,
                 name=f"Action {action}"
             )
             tasks.append(task)

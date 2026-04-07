@@ -10,17 +10,21 @@ class _Console():
     __slots__ = (
         '_r',
         '_new_line',
-        '_force_new_line'
+        '_force_new_line',
+        'verbosity'
     )
     _r: bool
     _new_line: bool
     _force_new_line: bool
+    verbosity: int
 
     class _VariablesApply:
         __slots__ = ()
 
         def __enter__(self) -> None:
             assert not (Console._r and Console._new_line)
+            if Console.verbosity == -2:
+                return
             if Console._force_new_line:
                 typer.echo()
             elif Console._r:
@@ -37,6 +41,11 @@ class _Console():
         self._new_line = False
         self._r = False
         self._force_new_line = False
+        self.verbosity = 0
+
+    @property
+    def is_silent(self) -> bool:
+        return self.verbosity == -2
 
     def echo[T: _Console](
         self: T,
@@ -56,20 +65,21 @@ class _Console():
         assert isinstance(text, str)
         assert '\n' not in text
         with self._VariablesApply():
-            typer.echo(typer.style(
-                text,
-                fg=fg,
-                bg=bg,
-                bold=bold,
-                dim=dim,
-                underline=underline,
-                overline=overline,
-                italic=italic,
-                blink=blink,
-                reverse=reverse,
-                strikethrough=strikethrough,
-                reset=reset
-            ), nl=False)
+            if not self.is_silent:
+                typer.echo(typer.style(
+                    text,
+                    fg=fg,
+                    bg=bg,
+                    bold=bold,
+                    dim=dim,
+                    underline=underline,
+                    overline=overline,
+                    italic=italic,
+                    blink=blink,
+                    reverse=reverse,
+                    strikethrough=strikethrough,
+                    reset=reset
+                ), nl=False)
         return self
 
     def edit[T: _Console](self: T) -> T:
@@ -105,18 +115,21 @@ class _Console():
         choices: tuple[str] | tuple[int] | None = None,
     ) -> t.Any:
         with self._VariablesApply():
-            value = typer.prompt(
-                text=text,
-                default=default,
-                hide_input=hide_input,
-                confirmation_prompt=confirmation_prompt,
-                type=Choice(choices) if choices else type,
-                value_proc=value_proc,
-                prompt_suffix=prompt_suffix,
-                show_default=show_default,
-                err=err,
-                show_choices=show_choices
-            )
+            if self.is_silent:
+                value = ''
+            else:
+                value = typer.prompt(
+                    text=text,
+                    default=default,
+                    hide_input=hide_input,
+                    confirmation_prompt=confirmation_prompt,
+                    type=Choice(choices) if choices else type,
+                    value_proc=value_proc,
+                    prompt_suffix=prompt_suffix,
+                    show_default=show_default,
+                    err=err,
+                    show_choices=show_choices
+                )
         return value
 
     def confirm(
@@ -129,14 +142,17 @@ class _Console():
         err: bool = False,
     ) -> bool:
         with self._VariablesApply():
-            value = typer.confirm(
-                text=text,
-                default=default,
-                abort=abort,
-                prompt_suffix=prompt_suffix,
-                show_default=show_default,
-                err=err
-            )
+            if self.is_silent:
+                value = True
+            else:
+                value = typer.confirm(
+                    text=text,
+                    default=default,
+                    abort=abort,
+                    prompt_suffix=prompt_suffix,
+                    show_default=show_default,
+                    err=err
+                )
         return value
 
     def finalize(self) -> None:
