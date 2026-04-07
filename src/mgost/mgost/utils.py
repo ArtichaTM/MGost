@@ -13,6 +13,8 @@ async def token_valid(mgost: 'MGost') -> bool:
     Console.echo('Валидация токена ...').edit()
     token_info = await mgost.api.validate_token()
     while isinstance(token_info, str):
+        if not Console.is_prompts:
+            return False
         Console\
             .echo('Токен некорректен: ', fg="red")\
             .echo(token_info, fg="bright_red")\

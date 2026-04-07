@@ -250,7 +250,7 @@ async def sync(mgost: 'MGost') -> None:
         BytesOrIntColumn()
     ) as progress:
         # If silent mode, remove progress
-        if Console.is_silent:
+        if not Console.is_progress:
             main_task = None
             progress = None
         else:

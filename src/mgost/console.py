@@ -23,9 +23,9 @@ class _Console():
 
         def __enter__(self) -> None:
             assert not (Console._r and Console._new_line)
-            if Console.verbosity == -2:
-                return
-            if Console._force_new_line:
+            if not Console.is_echo:
+                pass
+            elif Console._force_new_line:
                 typer.echo()
             elif Console._r:
                 typer.echo('\r', nl=False)
@@ -44,8 +44,16 @@ class _Console():
         self.verbosity = 0
 
     @property
-    def is_silent(self) -> bool:
-        return self.verbosity == -2
+    def is_progress(self) -> bool:
+        return self.verbosity == 0
+
+    @property
+    def is_echo(self) -> bool:
+        return self.verbosity == 0
+
+    @property
+    def is_prompts(self) -> bool:
+        return self.verbosity in (0, -1)
 
     def echo[T: _Console](
         self: T,
@@ -65,7 +73,7 @@ class _Console():
         assert isinstance(text, str)
         assert '\n' not in text
         with self._VariablesApply():
-            if not self.is_silent:
+            if self.is_echo:
                 typer.echo(typer.style(
                     text,
                     fg=fg,
@@ -115,9 +123,7 @@ class _Console():
         choices: tuple[str] | tuple[int] | None = None,
     ) -> t.Any:
         with self._VariablesApply():
-            if self.is_silent:
-                value = ''
-            else:
+            if self.is_prompts:
                 value = typer.prompt(
                     text=text,
                     default=default,
@@ -130,6 +136,8 @@ class _Console():
                     err=err,
                     show_choices=show_choices
                 )
+            else:
+                value = ''
         return value
 
     def confirm(
@@ -142,9 +150,7 @@ class _Console():
         err: bool = False,
     ) -> bool:
         with self._VariablesApply():
-            if self.is_silent:
-                value = True
-            else:
+            if self.is_prompts:
                 value = typer.confirm(
                     text=text,
                     default=default,
@@ -153,6 +159,8 @@ class _Console():
                     show_default=show_default,
                     err=err
                 )
+            else:
+                value = True
         return value
 
     def finalize(self) -> None:
