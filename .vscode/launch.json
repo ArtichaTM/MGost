@@ -15,14 +15,15 @@
             ]
         },
         {
-            "name": "Python Debugger: Module",
+            "name": "Sync remote",
             "type": "debugpy",
             "request": "launch",
             "module": "mgost",
             "args": [
+                "-v",
                 "sync"
             ],
-            "cwd": "${workspaceFolder}/test"
+            "cwd": "${workspaceFolder}/temp/remote_temp"
         }
     ]
 }
