@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -12,7 +12,7 @@ from ..environment.helper import EnvironmentHelper
 @pytest.mark.asyncio
 async def test_only_md(respx_mock: respx.MockRouter):
     project_id = 1
-    now = datetime.now()
+    now = datetime.now(tz=timezone.utc)
     second_ago = now - timedelta(seconds=1)
     seconds2_ago = now - timedelta(seconds=2)
     env = EnvironmentHelper(
@@ -51,7 +51,7 @@ async def test_only_md(respx_mock: respx.MockRouter):
 @pytest.mark.asyncio
 async def test_md_docx(respx_mock: respx.MockRouter):
     project_id = 1
-    now = datetime.now()
+    now = datetime.now(tz=timezone.utc)
     second_ago = now - timedelta(seconds=1)
     seconds2_ago = now - timedelta(seconds=2)
     env = EnvironmentHelper(

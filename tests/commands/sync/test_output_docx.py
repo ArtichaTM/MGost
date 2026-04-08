@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -16,7 +16,7 @@ async def test_no_docx(
     respx_mock: respx.MockRouter
 ):
     project_id = 1
-    now = datetime.now().astimezone()
+    now = datetime.now(timezone.utc)
     second_ago = now - timedelta(seconds=1)
     seconds2_ago = now - timedelta(seconds=2)
     env = EnvironmentHelper(
@@ -78,7 +78,7 @@ async def test_local_newer(
     respx_mock: respx.MockRouter
 ):
     project_id = 1
-    now = datetime.now().astimezone()
+    now = datetime.now(timezone.utc)
     second_ago = now - timedelta(seconds=1)
     seconds2_ago = now - timedelta(seconds=2)
     env = EnvironmentHelper(
@@ -147,7 +147,7 @@ async def test_local_older(
     respx_mock: respx.MockRouter
 ):
     project_id = 1
-    now = datetime.now().astimezone()
+    now = datetime.now(timezone.utc)
     second_ago = now - timedelta(seconds=1)
     seconds2_ago = now - timedelta(seconds=2)
     env = EnvironmentHelper(
@@ -209,7 +209,7 @@ async def test_different_size(
     respx_mock: respx.MockRouter
 ):
     project_id = 1
-    now = datetime.now().astimezone()
+    now = datetime.now(timezone.utc)
     second_ago = now - timedelta(seconds=1)
     seconds2_ago = now - timedelta(seconds=2)
     env = EnvironmentHelper(

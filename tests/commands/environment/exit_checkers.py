@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING, NamedTuple
 
@@ -22,7 +22,7 @@ def get_local_modify(
     if local_file_path.exists():
         return datetime.fromtimestamp(
             local_file_path.lstat().st_mtime,
-            tz=datetime.now().tzinfo
+            tz=timezone.utc
         )
 
 
@@ -59,7 +59,7 @@ def assert_synced(env: 'EnvironmentHelper') -> None:
         cloud_mt = file.modified
         local_mt = datetime.fromtimestamp(
             local_paths[Path(file.path)].lstat().st_mtime,
-            tz=cloud_mt.tzinfo
+            tz=timezone.utc
         )
         assert cloud_mt == local_mt, (
             f"Time diff for {file.path}, "

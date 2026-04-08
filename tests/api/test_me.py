@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from random import shuffle
 
 import httpx
@@ -17,8 +17,8 @@ async def test_me_correct(respx_mock: respx.MockRouter):
     mock_token_info = TokenInfo(
         name='Test',
         owner='TestOwner',
-        created=datetime.now() - timedelta(minutes=60),
-        modified=datetime.now() - timedelta(minutes=30)
+        created=datetime.now(timezone.utc) - timedelta(minutes=60),
+        modified=datetime.now(timezone.utc) - timedelta(minutes=30)
     )
     route = respx_mock.get(
         f"{BASE_URL}/me", headers={'X-API-Key': token}

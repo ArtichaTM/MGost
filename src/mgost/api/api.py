@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from os import utime
 from pathlib import Path
 from typing import Awaitable, Literal
@@ -14,8 +14,6 @@ from . import schemas
 from .caller import api_request
 from .exceptions import ClientClosed
 from .request import APIRequestInfo
-
-CURRENT_TIMEZONE = datetime.now().astimezone().tzinfo
 
 
 class ArtichaAPI:
@@ -224,8 +222,8 @@ class ArtichaAPI:
         params: dict = {
             'project_id': project_id,
             'modify_time': datetime.fromtimestamp(
-                full_path.lstat().st_mtime, CURRENT_TIMEZONE
-            )
+                full_path.lstat().st_mtime, timezone.utc
+            ).isoformat()
         }
         path_str = self._path_to_url(path)
         if overwrite:

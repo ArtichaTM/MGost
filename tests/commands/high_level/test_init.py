@@ -1,5 +1,5 @@
 import sys
-from datetime import datetime
+from datetime import datetime, timezone
 from io import StringIO
 from pathlib import Path
 
@@ -20,7 +20,7 @@ async def test_init(
     respx_mock: respx.MockRouter
 ):
     project_id = 1
-    now = datetime.now().astimezone()
+    now = datetime.now(timezone.utc)
     env = EnvironmentHelper(
         respx_mock=respx_mock,
         project=ProjectExtended(
@@ -62,7 +62,7 @@ async def test_init_kb_interrupt_launch(
 ):
     monkeypatch.setenv("ARTICHAAPI_TOKEN", '1')
     monkeypatch.setattr('typer.prompt', raise_keyboard_interrupt)
-    now = datetime.now().astimezone()
+    now = datetime.now(timezone.utc)
     env = EnvironmentHelper(
         respx_mock=respx_mock,
         project=ProjectExtended(

@@ -1,5 +1,5 @@
 import enum
-from datetime import datetime
+from datetime import datetime, timezone
 from os import utime
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -134,13 +134,13 @@ class EnvironmentHelper:
         p = 'output.docx'
         existing_file = self._file_from_path(p)
         if existing_file:
-            existing_file.modified = datetime.now()
+            existing_file.modified = datetime.now(timezone.utc)
         else:
             self.project.files.append(ProjectFile(
                 project_id=self.project.id,
                 path=p,
-                created=datetime.now(),
-                modified=datetime.now(),
+                created=datetime.now(timezone.utc),
+                modified=datetime.now(timezone.utc),
                 size=1
             ))
         return Response(
@@ -162,8 +162,8 @@ class EnvironmentHelper:
             json=Project(
                 name=name,
                 id=project_id,
-                created=datetime.now(),
-                modified=datetime.now()
+                created=datetime.now(timezone.utc),
+                modified=datetime.now(timezone.utc)
             ).model_dump(mode='json')
         )
 
@@ -199,8 +199,8 @@ class EnvironmentHelper:
             json=TokenInfo(
                 name='Test',
                 owner='TestOwner',
-                created=datetime.now(),
-                modified=datetime.now()
+                created=datetime.now(timezone.utc),
+                modified=datetime.now(timezone.utc)
             ).model_dump(mode='json')
         )
         self.routes._projects = self.respx_mock.get(
