@@ -27,7 +27,7 @@ def api_request(
     if params is None:
         params = QueryParams()
     assert isinstance(params, (dict, QueryParams))
-    if request.with_progress():
+    if request.request_file_path or request.response_file_path:
         return _method_progress(
             client=client,
             request=request,
@@ -48,6 +48,7 @@ async def _method_normal(
     assert isinstance(cache, dict)
     assert isinstance(request, APIRequestInfo)
     assert request.response_file_path is None
+    assert request.request_file_path is None
     assert not request.with_progress()
     key = (request.method, request.url, request.params)
     try:
@@ -124,8 +125,6 @@ async def _method_progress_upload(
     client: AsyncClient,
     request: APIRequestInfo
 ) -> Response:
-    assert request.progress is not None
-
     path = request.request_file_path
     root_path = request.root_path
     assert root_path is not None
@@ -134,12 +133,14 @@ async def _method_progress_upload(
     full_path = path
     path = path.relative_to(root_path)
 
-    task_id = request.progress.add_task(
-        description=f"↑ {path}",
-        total=(await full_path.lstat()).st_size,
-        visible=True,
-        bytes=True
-    )
+    task_id = None
+    if request.progress:
+        task_id = request.progress.add_task(
+            description=f"↑ {path}",
+            total=(await full_path.lstat()).st_size,
+            visible=True,
+            bytes=True
+        )
     response = await client.request(
         request.method, request.url,
         content=_file_chunker(
@@ -156,8 +157,6 @@ async def _method_progress_download(
     client: AsyncClient,
     request: APIRequestInfo
 ) -> Response:
-    assert request.progress is not None
-
     path = request.response_file_path
     root_path = request.root_path
     assert root_path is not None
@@ -166,12 +165,13 @@ async def _method_progress_download(
     full_path = path
     path = path.relative_to(root_path)
 
-    task = request.progress.add_task(
-        description=f"↓ {path}",
-        visible=True,
-        refresh=True,
-        bytes=True
-    )
+    if request.progress:
+        task = request.progress.add_task(
+            description=f"↓ {path}",
+            visible=True,
+            refresh=True,
+            bytes=True
+        )
     total = None
     async with client.stream(
         request.method, request.url,
@@ -181,14 +181,19 @@ async def _method_progress_download(
             total = int(resp.headers['content-length'])
         if 'size' in resp.headers:
             total = int(resp.headers['size'])
-        request.progress.update(
-            task,
-            total=total,
-            refresh=True
-        )
+        if request.progress:
+            request.progress.update(
+                task,
+                total=total,
+                refresh=True
+            )
         async with full_path.open('wb') as file:
-            async for chunk in resp.aiter_bytes():
-                request.progress.update(task, advance=len(chunk))
-                await file.write(chunk)
+            if request.progress:
+                async for chunk in resp.aiter_bytes():
+                    request.progress.update(task, advance=len(chunk))
+                    await file.write(chunk)
+            else:
+                async for chunk in resp.aiter_bytes():
+                    await file.write(chunk)
         return resp
     request.progress.update(visible=False)

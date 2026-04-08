@@ -1,5 +1,5 @@
 from asyncio import Task, create_task, gather
-from datetime import datetime
+from datetime import datetime, timezone
 from logging import getLogger
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal
@@ -20,7 +20,7 @@ if TYPE_CHECKING:
 
 
 __all__ = ('sync', 'sync_file')
-CURRENT_TIMEZONE = datetime.now().astimezone().tzinfo
+
 logger = getLogger(__name__)
 
 
@@ -50,12 +50,15 @@ def _compare_file_to(
             path.suffix,
             Path(filename).suffix
         )
+        logger.info(f'File "{path}" found by filename')
         return extensions[0] == extensions[1]
     if birth_time is not None\
             and hasattr(stat, 'st_birthtime')\
             and stat.st_birthtime == birth_time.timestamp():
+        logger.info(f'File "{path}" found by birth_time')
         return True
     if size is not None and stat.st_size == size:
+        logger.info(f'File "{path}" found by size')
         return True
     return False
 
@@ -83,7 +86,6 @@ def _search_file(
                 size=size
             )
             if result:
-
                 return current_file_path.relative_to(root_path)
 
 
@@ -107,11 +109,13 @@ async def sync_file(
     cloud_md_exists = path in project_files
     match local_md_exists, cloud_md_exists:
         case True, False:
+            logger.info(f'File "{path}" exists only locally')
             return UploadFileAction(
                 mgost.project_root, project_id,
                 path, False
             )
         case False, True:
+            logger.info(f'File "{path}" exists only on cloud')
             project_file = project_files[path]
             new_path = _search_file(
                 mgost.project_root,
@@ -132,22 +136,36 @@ async def sync_file(
             cloud_mt = project_files[path].modified
             local_mt = datetime.fromtimestamp(
                 full_path.lstat().st_mtime,
-                tz=CURRENT_TIMEZONE
+                tz=timezone.utc
             )
             assert cloud_mt.tzinfo is not None
             assert local_mt.tzinfo is not None
             if cloud_mt > local_mt:
+                logger.info(
+                    f'File "{path}" newer in cloud ('
+                    f'{cloud_mt.isoformat()} > {local_mt.isoformat()}'
+                    ')'
+                )
                 return DownloadFileAction(
                     mgost.project_root, project_id,
                     path, True
                 )
             elif cloud_mt < local_mt:
+                logger.info(
+                    f'File "{path}" newer locally ('
+                    f'{cloud_mt.isoformat()} < {local_mt.isoformat()}'
+                    ')'
+                )
                 return UploadFileAction(
                     mgost.project_root, project_id,
                     path, True
                 )
             return DoNothing()
         case False, False:
+            logger.info(
+                f'File "{path}" does not exist neither '
+                'locally or on cloud'
+            )
             new_path = _search_file(
                 mgost.project_root,
                 filename=path.name
@@ -173,6 +191,7 @@ async def sync_file(
                     ),
                     console_message=error_console
                 )
+            logger.info(f'File "{path}" moved to {new_path}')
             return FileMovedLocally(
                 mgost.project_root, project_id,
                 path, new_path
@@ -215,7 +234,7 @@ async def _sync_non_requirements_file(
     action = await sync_file(
         mgost, project_id, cloud_path
     )
-    logger.info(f"Syncing: {file} using {action}")
+    logger.info(f"Syncing {file} using {action}")
     assert isinstance(action, MGostCompletableAction)
     await action.complete_mgost(mgost, progress)
     if isinstance(action, MoveAction):

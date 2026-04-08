@@ -1,4 +1,4 @@
-from logging import ERROR, WARNING
+from logging import ERROR, WARNING, getLogger
 from pathlib import Path
 
 from httpx import HTTPStatusError
@@ -11,6 +11,8 @@ from mgost.settings import MGostInfo
 
 from .sync import sync, sync_file
 from .utils import project_valid
+
+logger = getLogger(__name__)
 
 
 class MGost:
@@ -93,6 +95,7 @@ class MGost:
                 .nl()
             return
         assert isinstance(result, BuildResult)
+        logger.info(f"Result of render: {result}")
         Console.echo('Рендер ')
         ended = 'завершён' if result.finished else 'не завершён'
         if result.max_log_level < WARNING:
@@ -129,6 +132,8 @@ class MGost:
                 .echo('Скачивание документа')
             try:
                 with Progress() as progress:
+                    if not Console.is_progress:
+                        progress = None
                     await self.api.download(
                         project_id=project.id,
                         root_path=self.project_root,
