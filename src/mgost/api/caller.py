@@ -148,7 +148,8 @@ async def _method_progress_upload(
             progress=request.progress,
             task_id=task_id
         ),
-        params=request.params
+        params=request.params,
+        headers={"Content-Type": "application/octet-stream"}
     )
     return response
 
