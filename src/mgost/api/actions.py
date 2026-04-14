@@ -6,9 +6,8 @@ from typing import TYPE_CHECKING, Callable
 from rich.progress import Progress
 
 if TYPE_CHECKING:
+    from mgost.api import ArtichaAPI
     from mgost.mgost import MGost
-
-    from .api import ArtichaAPI
 
 
 @dataclass(frozen=True, slots=True)
@@ -80,7 +79,7 @@ class PostProgressMessageAction(
     progress_message: str
     console_message: Callable[[], None]
 
-    async def complete_api(self, api, progress=None):
+    async def complete_api(self, api: 'ArtichaAPI', progress=None):
         if progress is not None:
             progress.add_task(
                 description=f"? {self.path}",
@@ -99,7 +98,7 @@ class PostProgressMessageAction(
 class UploadFileAction(APICompletableAction, PathAction):
     overwrite: bool
 
-    async def complete_api(self, api, progress=None):
+    async def complete_api(self, api: 'ArtichaAPI', progress=None):
         await api.upload(
             project_id=self.project_id,
             root_path=self.root_path,
@@ -113,7 +112,7 @@ class UploadFileAction(APICompletableAction, PathAction):
 class DownloadFileAction(APICompletableAction, PathAction):
     overwrite_ok: bool
 
-    async def complete_api(self, api, progress=None):
+    async def complete_api(self, api: 'ArtichaAPI', progress=None):
         await api.download(
             project_id=self.project_id,
             root_path=self.root_path,
@@ -125,7 +124,7 @@ class DownloadFileAction(APICompletableAction, PathAction):
 
 @dataclass(frozen=True, slots=True)
 class FileMovedLocally(APICompletableAction, MoveAction):
-    async def complete_api(self, api, progress=None):
+    async def complete_api(self, api: 'ArtichaAPI', progress=None):
         assert self.path != self.new_path
         project_files = await api.project_files(
             self.project_id
@@ -149,5 +148,5 @@ class FileMovedLocally(APICompletableAction, MoveAction):
 
 @dataclass(frozen=True, slots=True)
 class FileSync(MGostCompletableAction, PathAction):
-    async def complete_mgost(self, mgost, progress=None) -> Action:
+    async def complete_mgost(self, mgost: 'MGost', progress=None) -> Action:
         return await mgost.sync_file(self.project_id, self.path)
