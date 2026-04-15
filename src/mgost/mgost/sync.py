@@ -140,20 +140,26 @@ async def sync_file(
             )
             assert cloud_mt.tzinfo is not None
             assert local_mt.tzinfo is not None
-            if cloud_mt > local_mt:
+            difference = (local_mt - cloud_mt).seconds
+            # Difference < 0: cloud newer
+            # Difference > 0: local newer
+            if abs(difference) < 1:
+                # Does not update <1s changes
+                return DoNothing()
+            elif difference < 0:
                 logger.info(
                     f'File "{path}" newer in cloud ('
-                    f'{cloud_mt.isoformat()} > {local_mt.isoformat()}'
+                    f'{difference}'
                     ')'
                 )
                 return DownloadFileAction(
                     mgost.project_root, project_id,
                     path, True
                 )
-            elif cloud_mt < local_mt:
+            elif difference > 0:
                 logger.info(
                     f'File "{path}" newer locally ('
-                    f'{cloud_mt.isoformat()} < {local_mt.isoformat()}'
+                    f'{difference}'
                     ')'
                 )
                 return UploadFileAction(
