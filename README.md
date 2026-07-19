@@ -64,33 +64,30 @@ $ mgost render
 ## Структура проекта
 ```
 src/mgost/
-├── __main__.py              # Точка входа для `python -m mgost`
+├── __main__.py               # Точка входа для `python -m mgost`
 ├── console.py                # Обёртка над typer/click для консольного вывода (прогресс, цвета, промпты)
 ├── api/
-│   ├── api.py                 # Класс ArtichaAPI — HTTP-клиент для работы с облаком (проекты, файлы, токены)
-│   ├── actions.py             # Датаклассы действий синхронизации (загрузка/скачивание/перемещение файлов)
-│   ├── caller.py               # Низкоуровневая функция выполнения HTTP-запроса с ретраями
-│   ├── exceptions.py           # Исключения API (WrongToken, ClientClosed, APIRequestError)
-│   ├── remote_version.py       # Получение актуальной версии пакета с PyPI
-│   ├── request.py              # Датакласс APIRequestInfo — описание одного запроса
+│   ├── api.py                # Класс ArtichaAPI — HTTP-клиент для работы с облаком (проекты, файлы, токены)
+│   ├── actions.py            # Датаклассы действий синхронизации (загрузка/скачивание/перемещение файлов)
+│   ├── caller.py             # Низкоуровневая функция выполнения HTTP-запроса с повторами
+│   ├── exceptions.py         # Исключения API (WrongToken, ClientClosed, APIRequestError)
+│   ├── remote_version.py     # Получение актуальной версии пакета с PyPI
+│   ├── request.py            # Датакласс APIRequestInfo — описание одного запроса
 │   └── schemas/
-│       ├── general.py           # Общие Pydantic-схемы (TokenInfo)
-│       └── mgost.py              # Pydantic-схемы предметной области (Project, ProjectFile, BuildResult и т.д.)
+│       ├── general.py        # Общие Pydantic-схемы (TokenInfo)
+│       └── mgost.py          # Pydantic-схемы предметной области (Project, ProjectFile, BuildResult и т.д.)
 ├── cli/
-│   ├── app.py                  # Создание typer.Typer приложения и обёртка main() с перехватом Ctrl+C
-│   ├── callback.py             # Глобальный callback CLI (флаг -v, инициализация логирования)
-│   ├── commands.py             # Определения команд CLI (version, token, init, sync, render)
-│   └── async_commands.py       # Асинхронные реализации команд CLI
+│   ├── app.py                # Создание typer.Typer приложения и обёртка main() с перехватом Ctrl+C
+│   ├── callback.py           # Глобальный callback CLI (флаг -v, инициализация логирования)
+│   ├── commands.py           # Определения команд CLI (version, token, init, sync, render)
+│   └── async_commands.py     # Асинхронные реализации команд CLI
 ├── mgost/
-│   ├── mgost.py                # Класс MGost — основной фасад: инициализация, синхронизация, рендер проекта
-│   ├── sync.py                  # Логика синхронизации файлов проекта с облаком
-│   ├── progress_utils.py        # Кастомные колонки rich.progress (например, отображение байт/штук)
-│   └── utils.py                  # Вспомогательные функции (валидация токена и проекта)
+│   ├── mgost.py              # Класс MGost — основной фасад: инициализация, синхронизация, рендер проекта
+│   ├── sync.py               # Логика синхронизации файлов проекта с облаком
+│   ├── progress_utils.py     # Кастомные колонки rich.progress (например, отображение байт/штук)
+│   └── utils.py              # Вспомогательные функции (валидация токена и проекта)
 └── settings/
-    ├── settings.py              # Класс Settings — чтение токена/конфига из env, .env, промпта
-    └── logging.py                # Настройка уровней логирования по verbosity
-
-tests/                         # Тесты (pytest), структура повторяет src/mgost
+    ├── settings.py           # Класс Settings — чтение токена/конфига из env, .env, команды
+    └── logging.py            # Настройка логирования
+tests/                        # Тесты (pytest), структура повторяет src/mgost
 ```
-
-`__init__.py` файлы опущены — они лишь реэкспортируют публичные имена модулей.
