@@ -25,7 +25,6 @@ dependencies = [
     "click>=8.3.1",
     "dotenv>=0.9.9",
     "httpx>=0.28.1",
-    "pre-commit>=4.2.0",
     "pydantic>=2.11.7",
     "typer>=0.16.1",
 ]
@@ -54,6 +53,7 @@ mgost = "mgost:main"
 
 [dependency-groups]
 dev = [
+    "pre-commit>=4.2.0",
     "coverage>=7.11.0",
     "pytest-asyncio>=1.2.0",
     "pytest-xdist>=3.8.0",
