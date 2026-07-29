@@ -140,7 +140,7 @@ async def sync_file(
             )
             assert cloud_mt.tzinfo is not None
             assert local_mt.tzinfo is not None
-            difference = (local_mt - cloud_mt).seconds
+            difference = (local_mt - cloud_mt).total_seconds()
             # Difference < 0: cloud newer
             # Difference > 0: local newer
             if abs(difference) < 1:
