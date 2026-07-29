@@ -1,8 +1,5 @@
-import pytest
-
 from mgost.cli import async_commands
 
 
-@pytest.mark.asyncio
-async def test_version():
+async def test_version_runs():
     await async_commands.version()
