@@ -113,51 +113,133 @@ async def test_row8_day_old_local_uploads(
     workspace.assert_converged(cloud)
 
 
-# --- Rows 3a-4c: is this local file the same file? -------------------------
+# --- Rows 3a-4c, 11-13: is this local file the same file? ------------------
 #
-# The cloud holds main.md; main.md is absent locally; one decoy file sits
-# elsewhere in the tree. A decoy counts as the same file only when name AND
-# size both match — reading down `expected` states that rule as data.
-#
-# All five are EXPECTED TO FAIL, and all five die the same way: sync_file
-# builds FileMovedLocally with the ABSOLUTE full_path (sync.py:131) while
-# PathAction.__post_init__ asserts the path is relative, so the whole
-# move-detected branch raises before any request is made. 3a is correct
-# behaviour and crashes with the rest.
-#
-# Two further defects in _search_file sit behind that one, and will
-# surface on 3b/4a/4b/4c once it is fixed. See tests/README.md.
-#
-# Do not fix src/. Do not xfail these.
+# The cloud holds main.md; main.md is absent locally; decoys sit
+# elsewhere in the tree. Reading down `expected` states the rule as data.
 
-@pytest.mark.parametrize(
-    'decoy_path, decoy_size, cloud_size, expected',
-    [
-        (Path('docs/main.md'), 20, 20, 'PATCH'),
-        (Path('docs/main.md'), 21, 20, 'GET'),
-        (Path('unrelated.txt'), 0, 0, 'GET'),
-        (Path('unrelated.txt'), 64, 64, 'GET'),
-        (Path('unrelated.txt'), 358_400, 358_400, 'GET'),
-    ],
-    ids=['3a', '3b', '4a', '4b', '4c'],
-)
-async def test_rows3_4_move_detection(
-    cloud, workspace, sync_project, clock,
-    decoy_path, decoy_size, cloud_size, expected,
+async def test_row3a_exact_digest_patches(
+    cloud, workspace, sync_project, clock, answers
 ):
-    cloud.add(MD, size=cloud_size, modified=clock.second_ago)
+    answers(True)
+    cloud.add(MD, size=20, modified=clock.second_ago)
     cloud.add(DOCX, size=100, modified=clock.second_ago)
     workspace.materialise(DOCX, size=100, modified=clock.second_ago)
-    # The decoy's mtime is never the cloud file's `created`, so the
-    # st_birthtime branch stays dead on every platform.
-    workspace.materialise(
-        decoy_path, size=decoy_size, modified=clock.seconds2_ago
+    workspace.copy_from_cloud(
+        cloud, MD, Path('docs/main.md'), modified=clock.seconds2_ago
     )
 
     await sync_project()
 
-    md_calls = [c for c in cloud.file_calls() if c.path == MD]
-    assert [c.method for c in md_calls] == [expected]
+    assert [c for c in cloud.file_calls() if c.path == MD] == [
+        Call('PATCH', MD, Path('docs/main.md'))
+    ]
+
+
+@pytest.mark.parametrize(
+    'decoy_mtime_attr, second_call',
+    [('seconds2_ago', 'GET'), ('now', 'PUT')],
+    ids=['3b-cloud-newer', '3c-local-newer'],
+)
+async def test_rows3b_3c_moved_and_edited(
+    cloud, workspace, sync_project, clock, answers,
+    decoy_mtime_attr, second_call,
+):
+    answers(True)
+    cloud.add(MD, size=20, modified=clock.second_ago)
+    cloud.add(DOCX, size=100, modified=clock.second_ago)
+    workspace.materialise(DOCX, size=100, modified=clock.second_ago)
+    workspace.materialise(
+        Path('docs/main.md'), size=21,
+        modified=getattr(clock, decoy_mtime_attr),
+    )
+
+    await sync_project()
+
+    assert [c.method for c in cloud.calls] == ['PATCH', second_call]
+
+
+@pytest.mark.parametrize(
+    'size', [0, 64, 358_400], ids=['4a', '4b', '4c'],
+)
+async def test_rows4_unrelated_file_downloads(
+    cloud, workspace, sync_project, clock, answers, size
+):
+    """4a's bytes ARE equal - every empty file hashes alike. The size > 0
+    guard rejects it, not the digest."""
+    answers(True, interactive=False)
+    cloud.add(MD, size=size, modified=clock.second_ago)
+    cloud.add(DOCX, size=100, modified=clock.second_ago)
+    workspace.materialise(DOCX, size=100, modified=clock.second_ago)
+    workspace.materialise(
+        Path('unrelated.txt'), size=size, modified=clock.seconds2_ago
+    )
+
+    await sync_project()
+
+    assert [c for c in cloud.file_calls() if c.path == MD] == [
+        Call('GET', MD)
+    ]
+
+
+async def test_row11_tracked_file_is_not_a_candidate(
+    cloud, workspace, sync_project, clock, answers
+):
+    """notes.md is byte-identical to main.md and present locally.
+    Without the tracked-path exclusion, pass 1 claims it and PATCHes
+    main.md over a real file."""
+    answers(True)
+    cloud.add(MD, size=20, modified=clock.second_ago)
+    cloud.add(DOCX, size=100, modified=clock.second_ago)
+    workspace.materialise(DOCX, size=100, modified=clock.second_ago)
+    cloud.write(Path('notes.md'), cloud.read(MD), clock.second_ago)
+    workspace.copy_from_cloud(
+        cloud, MD, Path('notes.md'), modified=clock.second_ago
+    )
+
+    await sync_project()
+
+    assert [c for c in cloud.file_calls() if c.path == MD] == [
+        Call('GET', MD)
+    ]
+
+
+async def test_row12_two_candidates_sharing_a_name_download(
+    cloud, workspace, sync_project, clock, answers
+):
+    """The several-markdown-files case."""
+    answers(True)
+    cloud.add(MD, size=20, modified=clock.second_ago)
+    cloud.add(DOCX, size=100, modified=clock.second_ago)
+    workspace.materialise(DOCX, size=100, modified=clock.second_ago)
+    workspace.materialise(Path('docs/main.md'), 21, clock.now)
+    workspace.materialise(Path('archive/main.md'), 22, clock.now)
+
+    await sync_project()
+
+    assert [c for c in cloud.file_calls() if c.path == MD] == [
+        Call('GET', MD)
+    ]
+
+
+@pytest.mark.parametrize(
+    'answer, interactive, expected',
+    [(True, True, ['PATCH', 'PUT']), (True, False, ['GET'])],
+    ids=['13-confirmed', '13-unattended'],
+)
+async def test_row13_sole_remainder(
+    cloud, workspace, sync_project, clock, answers,
+    answer, interactive, expected,
+):
+    answers(answer, interactive=interactive)
+    cloud.add(MD, size=20, modified=clock.second_ago)
+    cloud.add(DOCX, size=100, modified=clock.second_ago)
+    workspace.materialise(DOCX, size=100, modified=clock.second_ago)
+    workspace.materialise(Path('chapter.md'), size=21, modified=clock.now)
+
+    await sync_project()
+
+    assert [c.method for c in cloud.calls] == expected
 
 
 # --- Requirements ----------------------------------------------------------

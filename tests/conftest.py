@@ -4,6 +4,7 @@ from datetime import datetime, timedelta, timezone
 import pytest
 import respx
 
+from mgost.console import Console
 from mgost.mgost import MGost
 
 from .harness import FakeCloud, Workspace
@@ -75,6 +76,21 @@ def sync_project(workspace: Workspace, cloud: FakeCloud):
             await mgost.sync_files()
 
     return _run
+
+
+@pytest.fixture
+def answers(monkeypatch):
+    """Drives Console.confirm. Console.is_prompts is True by default and
+    typer.confirm would read a closed stdin under pytest."""
+    def _set(value: bool, interactive: bool = True):
+        monkeypatch.setattr(
+            type(Console), 'is_prompts', property(lambda self: interactive)
+        )
+        monkeypatch.setattr(
+            type(Console), 'confirm',
+            lambda self, text, **kw: value if interactive else True,
+        )
+    return _set
 
 
 @pytest.fixture

@@ -1,3 +1,4 @@
+from hashlib import sha256
 from os import utime
 from pathlib import Path
 
@@ -45,6 +46,26 @@ async def test_project_files_keyed_by_path(cloud, api, clock):
     files = await api.project_files(cloud.project_id)
     assert set(files) == {Path('images/i.png')}
     assert files[Path('images/i.png')].size == 7
+
+
+async def test_project_files_carry_real_digest(cloud, api, clock):
+    path = Path('main.md')
+    cloud.add(path, size=20, modified=clock.second_ago)
+
+    files = await api.project_files(cloud.project_id)
+
+    assert files[path].hash == sha256(cloud.read(path)).hexdigest()
+    assert len(files[path].hash) == 64
+    assert files[path].hash == files[path].hash.lower()
+
+
+async def test_empty_files_share_a_digest(cloud, api, clock):
+    cloud.add(Path('a.md'), size=0, modified=clock.second_ago)
+    cloud.add(Path('b.md'), size=0, modified=clock.second_ago)
+
+    files = await api.project_files(cloud.project_id)
+
+    assert files[Path('a.md')].hash == files[Path('b.md')].hash
 
 
 async def test_requirements(cloud, api):

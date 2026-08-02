@@ -27,3 +27,16 @@ class APIRequestError(Exception):
         assert isinstance(detail, str)
         self.response = response
         self.detail = detail
+
+
+UPLOAD_ERRORS = {
+    409: 'файл с таким путём уже существует в облаке',
+    404: 'файл не найден в облаке',
+    413: 'файл больше 20 МБ',
+}
+
+
+def upload_error_message(status_code: int) -> str:
+    return UPLOAD_ERRORS.get(
+        status_code, f'ошибка загрузки №{status_code}'
+    )

@@ -1,21 +1,25 @@
 from asyncio import Task, create_task, gather
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from logging import getLogger
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING
 
 from rich.progress import BarColumn, Progress, TaskID, TextColumn
 
 from mgost.api.actions import (
-    Action, DoNothing, DownloadFileAction, FileMovedLocally,
-    MGostCompletableAction, MoveAction, PostProgressAction,
-    PostProgressMessageAction, UploadFileAction
+    DoNothing, DownloadFileAction, FileMovedAndEditedLocally, FileMovedLocally,
+    MGostCompletableAction, PostProgressAction, PostProgressMessageAction,
+    UploadFileAction
 )
 from mgost.console import Console
 
+from .matching import Match, Matcher, collect_candidates, file_digest
 from .progress_utils import BytesOrIntColumn
 
 if TYPE_CHECKING:
+    from mgost.api.schemas.mgost import ProjectFile
+
     from .mgost import MGost
 
 
@@ -28,181 +32,200 @@ class SyncError(Exception):
     pass
 
 
-def _compare_file_to(
-    path: Path,
-    filename: str | None = None,
-    birth_time: datetime | None = None,
-    size: int | None = None
+@dataclass(frozen=True, slots=True)
+class Question:
+    """A move the matcher proposes but will not perform unasked."""
+
+    text: str
+    on_yes: MGostCompletableAction
+    on_no: MGostCompletableAction
+    interactive_only: bool
+
+
+@dataclass(slots=True)
+class SyncPlan:
+    actions: list[MGostCompletableAction] = field(default_factory=list)
+    questions: list[Question] = field(default_factory=list)
+
+
+def _local_is_newer(
+    mgost: 'MGost', local_path: Path, cloud_modified: datetime
 ) -> bool:
-    assert path.exists()
-    assert filename is None or isinstance(filename, str)
-    assert birth_time is None or isinstance(birth_time, datetime)
-    assert size is None or isinstance(size, int)
-    stat = path.lstat()
-    if filename is not None and path.name == filename:
-        # If it some variable suffix, return True without compare
-        # If not, compare suffix
-        if path.suffix not in {
-            'md', 'docx', 'xlsx'
-        }:
-            return True
-        extensions = (
-            path.suffix,
-            Path(filename).suffix
+    local_mt = datetime.fromtimestamp(
+        (mgost.project_root / local_path).lstat().st_mtime,
+        tz=timezone.utc
+    )
+    return (local_mt - cloud_modified).total_seconds() > 0
+
+
+def _move_action(
+    mgost: 'MGost',
+    project_id: int,
+    match: Match,
+    cloud_modified: datetime,
+) -> MGostCompletableAction:
+    if match.rung == 1:
+        return FileMovedLocally(
+            mgost.project_root, project_id,
+            match.cloud_path, match.local_path
         )
-        logger.info(f'File "{path}" found by filename')
-        return extensions[0] == extensions[1]
-    if birth_time is not None\
-            and hasattr(stat, 'st_birthtime')\
-            and stat.st_birthtime == birth_time.timestamp():
-        logger.info(f'File "{path}" found by birth_time')
-        return True
-    if size is not None and stat.st_size == size:
-        logger.info(f'File "{path}" found by size')
-        return True
-    return False
-
-
-def _search_file(
-    root_path: Path,
-    filename: str | None = None,
-    birth_time: datetime | None = None,
-    size: int | None = None
-) -> Path | None:
-    assert isinstance(root_path, Path)
-    assert root_path.is_absolute()
-    assert filename is None or isinstance(filename, str)
-    assert birth_time is None or isinstance(birth_time, datetime)
-    assert size is None or isinstance(size, int)
-    for directory, _, files in root_path.walk():
-        if directory.name.startswith('.'):
-            continue
-        for file in files:
-            current_file_path = directory / file
-            result = _compare_file_to(
-                current_file_path,
-                filename=filename,
-                birth_time=birth_time,
-                size=size
-            )
-            if result:
-                return current_file_path.relative_to(root_path)
+    return FileMovedAndEditedLocally(
+        mgost.project_root, project_id,
+        match.cloud_path, match.local_path,
+        local_newer=_local_is_newer(
+            mgost, match.local_path, cloud_modified
+        )
+    )
 
 
 async def sync_file(
     mgost: 'MGost',
     project_id: int,
-    path: Path
-) -> Action:
-    """Calculating required action to sync files
-        cloud<->local by path
-    :raises FileNotFoundError: Exception raised when file can't be found
-        nor in cloud nor locally
-    :return: Returns action required to sync passed path
+    path: Path,
+    plan: SyncPlan,
+    match: Match | None = None,
+) -> None:
+    """Append the action for `path` to `plan`.
+
+    `match` is the matcher's proposal for a cloud file with no local
+    file at its own path, or None when nothing was proposed.
     """
     assert isinstance(project_id, int)
     assert isinstance(path, Path)
     assert not path.is_absolute()
     project_files = await mgost.api.project_files(project_id)
     full_path = mgost.project_root / path
-    local_md_exists = full_path.exists()
-    cloud_md_exists = path in project_files
-    match local_md_exists, cloud_md_exists:
+    local_exists = full_path.exists()
+    cloud_exists = path in project_files
+    match local_exists, cloud_exists:
         case True, False:
             logger.info(f'File "{path}" exists only locally')
-            return UploadFileAction(
-                mgost.project_root, project_id,
-                path, False
-            )
+            plan.actions.append(UploadFileAction(
+                mgost.project_root, project_id, path, False
+            ))
         case False, True:
-            logger.info(f'File "{path}" exists only on cloud')
-            project_file = project_files[path]
-            new_path = _search_file(
-                mgost.project_root,
-                filename=path.name,
-                birth_time=project_file.created,
-                size=project_file.size
-            )
-            if new_path is None:
-                return DownloadFileAction(
-                    mgost.project_root, project_id,
-                    path, False
-                )
-            return FileMovedLocally(
-                mgost.project_root, project_id,
-                full_path, new_path
-            )
+            plan.actions.append(_cloud_only_action(
+                mgost, project_id, path, project_files[path], match, plan
+            ))
         case True, True:
-            cloud_mt = project_files[path].modified
-            local_mt = datetime.fromtimestamp(
-                full_path.lstat().st_mtime,
-                tz=timezone.utc
-            )
-            assert cloud_mt.tzinfo is not None
-            assert local_mt.tzinfo is not None
-            difference = (local_mt - cloud_mt).total_seconds()
-            # Difference < 0: cloud newer
-            # Difference > 0: local newer
-            if abs(difference) < 1:
-                # Does not update <1s changes
-                return DoNothing()
-            elif difference < 0:
-                logger.info(
-                    f'File "{path}" newer in cloud ('
-                    f'{difference}'
-                    ')'
-                )
-                return DownloadFileAction(
-                    mgost.project_root, project_id,
-                    path, True
-                )
-            elif difference > 0:
-                logger.info(
-                    f'File "{path}" newer locally ('
-                    f'{difference}'
-                    ')'
-                )
-                return UploadFileAction(
-                    mgost.project_root, project_id,
-                    path, True
-                )
-            return DoNothing()
+            plan.actions.append(_both_present_action(
+                mgost, project_id, path, project_files[path], full_path
+            ))
         case False, False:
-            logger.info(
-                f'File "{path}" does not exist neither '
-                'locally or on cloud'
-            )
-            new_path = _search_file(
-                mgost.project_root,
-                filename=path.name
-            )
-            if new_path is None:
-                def error_console():
-                    Console\
-                        .echo("Требуется файл ")\
-                        .echo(f"{path}", fg="cyan")\
-                        .echo(", однако он ")\
-                        .echo("не найден", fg="red")\
-                        .echo(" ни локально, ни в облаке")\
-                        .force_nl()
-                assert mgost.info.settings.project_id is not None
-                return PostProgressMessageAction(
-                    root_path=mgost.project_root,
-                    project_id=mgost.info.settings.project_id,
-                    path=path,
-                    progress_message=(
-                        f'Требуется файл {path}, '
-                        'однако он не найден '
-                        'ни локально, ни в облаке'
-                    ),
-                    console_message=error_console
-                )
-            logger.info(f'File "{path}" moved to {new_path}')
-            return FileMovedLocally(
-                mgost.project_root, project_id,
-                path, new_path
-            )
-    assert False
+            plan.actions.append(_missing_everywhere_action(
+                mgost, project_id, path
+            ))
+
+
+def _cloud_only_action(
+    mgost: 'MGost',
+    project_id: int,
+    path: Path,
+    cloud_file: 'ProjectFile',
+    match: Match | None,
+    plan: SyncPlan,
+) -> MGostCompletableAction:
+    download = DownloadFileAction(
+        mgost.project_root, project_id, path, False
+    )
+    if match is None:
+        logger.info(f'File "{path}" exists only on cloud')
+        return download
+    action = _move_action(mgost, project_id, match, cloud_file.modified)
+    if match.rung == 1:
+        return action
+    plan.questions.append(Question(
+        text=(
+            f'Файл "{path.as_posix()}" перемещён '
+            f'в "{match.local_path.as_posix()}"?'
+        ),
+        on_yes=action,
+        on_no=download,
+        interactive_only=match.rung == 3,
+    ))
+    return DoNothing()
+
+
+def _both_present_action(
+    mgost: 'MGost',
+    project_id: int,
+    path: Path,
+    cloud_file: 'ProjectFile',
+    full_path: Path,
+) -> MGostCompletableAction:
+    if full_path.lstat().st_size == cloud_file.size:
+        # Sizes match, so a digest is cheap and settles it outright.
+        # Hashing is skipped entirely when the sizes already differ.
+        if file_digest(full_path) == cloud_file.hash:
+            logger.info(f'File "{path}" identical on both sides')
+            return DoNothing()
+    cloud_mt = cloud_file.modified
+    local_mt = datetime.fromtimestamp(
+        full_path.lstat().st_mtime,
+        tz=timezone.utc
+    )
+    assert cloud_mt.tzinfo is not None
+    assert local_mt.tzinfo is not None
+    difference = (local_mt - cloud_mt).total_seconds()
+    # Difference < 0: cloud newer
+    # Difference > 0: local newer
+    if abs(difference) < 1:
+        # Does not update <1s changes
+        return DoNothing()
+    elif difference < 0:
+        logger.info(
+            f'File "{path}" newer in cloud ('
+            f'{difference}'
+            ')'
+        )
+        return DownloadFileAction(
+            mgost.project_root, project_id,
+            path, True
+        )
+    elif difference > 0:
+        logger.info(
+            f'File "{path}" newer locally ('
+            f'{difference}'
+            ')'
+        )
+        return UploadFileAction(
+            mgost.project_root, project_id,
+            path, True
+        )
+    return DoNothing()
+
+
+def _missing_everywhere_action(
+    mgost: 'MGost',
+    project_id: int,
+    path: Path,
+) -> MGostCompletableAction:
+    logger.info(
+        f'File "{path}" does not exist neither '
+        'locally or on cloud'
+    )
+
+    def error_console():
+        Console\
+            .echo("Требуется файл ")\
+            .echo(f"{path}", fg="cyan")\
+            .echo(", однако он ")\
+            .echo("не найден", fg="red")\
+            .echo(" ни локально, ни в облаке")\
+            .force_nl()
+    assert mgost.info.settings.project_id is not None
+    return PostProgressMessageAction(
+        root_path=mgost.project_root,
+        project_id=mgost.info.settings.project_id,
+        path=path,
+        progress_message=(
+            f'Требуется файл {path}, '
+            'однако он не найден '
+            'ни локально, ни в облаке'
+        ),
+        console_message=error_console
+    )
+
 
 async def complete_with_progress(
     mgost: 'MGost',
@@ -219,124 +242,95 @@ async def complete_with_progress(
         progress.advance(main_task)
 
 
-async def _sync_non_requirements_file(
-    mgost: 'MGost',
-    file: Literal['md'] | Literal['docx'],
-    progress: Progress | None,
-    main_task: TaskID | None
-) -> None:
-    assert file in {'md', 'docx'}
+async def plan_sync(mgost: 'MGost') -> SyncPlan:
     project_id = mgost.info.settings.project_id
     assert project_id is not None
     assert await mgost.api.is_project_available(project_id)
     project = await mgost.api.project(project_id)
-    match file:
-        case 'md':
-            cloud_path = project.path_to_markdown
-        case 'docx':
-            cloud_path = project.path_to_docx
-        case _:
-            raise RuntimeError(file)
-    action = await sync_file(
-        mgost, project_id, cloud_path
+    project_files = await mgost.api.project_files(project_id)
+    requirements = await mgost.api.project_requirements(project_id)
+
+    wanted = [
+        project.path_to_markdown,
+        project.path_to_docx,
+        *(Path(r) for r in requirements),
+    ]
+    missing = {
+        path: project_files[path]
+        for path in wanted
+        if path in project_files
+        and not (mgost.project_root / path).exists()
+    }
+    matcher = Matcher(
+        mgost.project_root,
+        collect_candidates(mgost.project_root, tracked=project_files),
     )
-    logger.info(f"Syncing {file} using {action}")
-    assert isinstance(action, MGostCompletableAction)
-    await action.complete_mgost(mgost, progress)
-    if isinstance(action, MoveAction):
-        match file:
-            case 'md':
-                mgost.info.settings.md_path = action.new_path
-            case 'docx':
-                mgost.info.settings.docx_path = action.new_path
-            case _:
-                raise RuntimeError((file, action))
-    if progress:
-        assert main_task is not None
-        progress.advance(main_task)
+    matches = {m.cloud_path: m for m in matcher.resolve(missing)}
+
+    plan = SyncPlan()
+    for path in wanted:
+        await sync_file(
+            mgost, project_id, path, plan, matches.get(path)
+        )
+    return plan
 
 
-async def sync(mgost: 'MGost') -> None:
-    project_id = mgost.info.settings.project_id
-    assert project_id is not None
-    assert await mgost.api.is_project_available(project_id)
+def confirm_sync(plan: SyncPlan) -> list[MGostCompletableAction]:
+    """Answer pending questions before any progress display opens."""
+    actions = list(plan.actions)
+    for question in plan.questions:
+        if question.interactive_only and not Console.is_prompts:
+            # Console.confirm returns True unattended, which is the
+            # opposite of what a no-evidence match needs.
+            actions.append(question.on_no)
+            continue
+        answered = Console.confirm(question.text, default=True)
+        actions.append(question.on_yes if answered else question.on_no)
+    return actions
 
-    Console\
-        .edit()\
-        .echo(
-            "Получение информации о проекте"
-        )\
-        .nl()\
-        .edit()
 
+async def execute_sync(
+    mgost: 'MGost', actions: list[MGostCompletableAction]
+) -> None:
     with Progress(
         TextColumn('{task.description}'),
         BarColumn(),
         BytesOrIntColumn()
     ) as progress:
-        # If silent mode, remove progress
         if not Console.is_progress:
             main_task = None
             progress = None
         else:
             main_task = progress.add_task(
                 description="Синхронизация",
-                total=2,
+                total=len(actions),
                 start=True
             )
-        assert progress is None or isinstance(progress, Progress)
-
-        # Reusable variable
-        await _sync_non_requirements_file(
-            mgost, 'md', progress, main_task
-        )
-
-        project_requirements = await mgost.api.project_requirements(
-            project_id
-        )
-        if progress:
-            assert main_task is not None
-            progress.update(
-                main_task,
-                total=2 + len(project_requirements),
-                refresh=True,
-            )
-
-        actions: list[Action] = []
-        for requirement in project_requirements:
-            actions.append(await sync_file(
-                mgost, project_id, Path(requirement)
-            ))
-        logger.info(f"Completing tasks: {actions}")
-
         tasks: list[Task] = []
         for action in actions:
-            assert isinstance(action, MGostCompletableAction)
             if progress:
                 coro = complete_with_progress(
-                    mgost=mgost,
-                    action=action,
-                    progress=progress,
-                    main_task=main_task
+                    mgost=mgost, action=action,
+                    progress=progress, main_task=main_task
                 )
             else:
                 coro = action.complete_mgost(mgost)
-            task = create_task(
-                coro=coro,
-                name=f"Action {action}"
-            )
-            tasks.append(task)
-        tasks.append(create_task(_sync_non_requirements_file(
-            mgost, 'docx', progress, main_task
-        )))
-
+            tasks.append(create_task(coro, name=f"Action {action}"))
         await gather(*tasks)
 
-    if not actions:
-        return
+    finished = [
+        create_task(a.progress_finished())
+        for a in actions
+        if isinstance(a, PostProgressAction)
+    ]
+    if finished:
+        await gather(*finished)
 
-    tasks.clear()
-    for action in actions:
-        if isinstance(action, PostProgressAction):
-            tasks.append(create_task(action.progress_finished()))
-    await gather(*tasks)
+
+async def sync(mgost: 'MGost') -> None:
+    Console.edit().echo(
+        "Получение информации о проекте"
+    ).nl().edit()
+    plan = await plan_sync(mgost)
+    actions = confirm_sync(plan)
+    await execute_sync(mgost, actions)

@@ -124,24 +124,58 @@ class DownloadFileAction(APICompletableAction, PathAction):
 
 @dataclass(frozen=True, slots=True)
 class FileMovedLocally(APICompletableAction, MoveAction):
+    """The file moved and its bytes are unchanged.
+
+    PATCH is not one option among several: the server updates the
+    project's markdown and docx pointers when the moved path matches
+    one of them, and no other operation does. PUT at the new path
+    returns 404 because there is nothing there yet, and POST+DELETE
+    would move the bytes while leaving the project pointing at a path
+    that no longer exists.
+    """
+
     async def complete_api(self, api: 'ArtichaAPI', progress=None):
         assert self.path != self.new_path
-        project_files = await api.project_files(
-            self.project_id
+        await api.move_on_cloud(
+            project_id=self.project_id,
+            root_path=self.root_path,
+            old_path=self.path,
+            new_path=self.new_path
         )
-        if self.path in project_files:
-            await api.move_on_cloud(
+
+
+@dataclass(frozen=True, slots=True)
+class FileMovedAndEditedLocally(APICompletableAction, MoveAction):
+    """The file moved and its content differs.
+
+    Two strictly ordered calls: PATCH establishes where the file is,
+    then one transfer settles what is in it. They cannot be gathered.
+    """
+
+    local_newer: bool
+
+    async def complete_api(self, api: 'ArtichaAPI', progress=None):
+        assert self.path != self.new_path
+        await api.move_on_cloud(
+            project_id=self.project_id,
+            root_path=self.root_path,
+            old_path=self.path,
+            new_path=self.new_path
+        )
+        if self.local_newer:
+            await api.upload(
                 project_id=self.project_id,
                 root_path=self.root_path,
-                old_path=self.path,
-                new_path=self.new_path
+                path=self.new_path,
+                overwrite=True,
+                progress=progress
             )
         else:
-            await api.upload(
-                self.project_id,
+            await api.download(
+                project_id=self.project_id,
                 root_path=self.root_path,
                 path=self.new_path,
-                overwrite=False,
+                overwrite_ok=True,
                 progress=progress
             )
 

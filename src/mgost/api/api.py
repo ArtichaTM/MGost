@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from os import utime
+from os import replace, utime
 from pathlib import Path
 from typing import Awaitable, Literal
 
@@ -79,6 +79,16 @@ class ArtichaAPI:
     ) -> Awaitable[Response]:
         assert isinstance(request, APIRequestInfo)
         assert self._client is not None
+        # Server error `detail` strings should match the language the
+        # rest of the CLI speaks.
+        params = request.params
+        if params is None:
+            params = {'lang': 'ru'}
+        elif isinstance(params, dict):
+            params = {**params, 'lang': 'ru'}
+        else:
+            params = params.merge({'lang': 'ru'})
+        request.params = params
         return api_request(
             client=self._client,
             cache=self._cache,
@@ -259,15 +269,24 @@ class ArtichaAPI:
         assert isinstance(path, Path)
         assert isinstance(overwrite_ok, bool)
         full_path = root_path / path
+        temp_path = full_path.parent / f'.{full_path.name}.mgost-tmp'
         path_str = self._path_to_url(path)
         full_path.parent.mkdir(parents=True, exist_ok=True)
-        resp = await self.method(APIRequestInfo(
-            'GET', f'/mgost/project/{project_id}/files/{path_str}',
-            root_path=root_path,
-            response_file_path=AsyncPath(full_path),
-            progress=progress
-        ))
-        resp.raise_for_status()
+        try:
+            resp = await self.method(APIRequestInfo(
+                'GET', f'/mgost/project/{project_id}/files/{path_str}',
+                root_path=root_path,
+                response_file_path=AsyncPath(full_path),
+                progress=progress
+            ))
+            resp.raise_for_status()
+            if full_path.exists() and not overwrite_ok:
+                # A stale action: something arrived while we downloaded.
+                # Losing the download beats losing the user's file.
+                return
+            replace(temp_path, full_path)
+        finally:
+            temp_path.unlink(missing_ok=True)
         access_time = full_path.lstat().st_atime
         project_files = await self.project_files(project_id)
         project_file = project_files[path]

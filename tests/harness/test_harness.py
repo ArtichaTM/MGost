@@ -1,4 +1,5 @@
 from datetime import timezone
+from hashlib import sha256
 from pathlib import Path
 
 import pytest
@@ -121,3 +122,30 @@ def test_assert_converged_reports_mtime_drift(workspace_store, clock):
             workspace_store.assert_converged(other)
     finally:
         other.close()
+
+
+def test_copy_from_cloud_reproduces_bytes(workspace, cloud, clock):
+    cloud.add(Path('main.md'), size=20, modified=clock.second_ago)
+
+    workspace.copy_from_cloud(
+        cloud, Path('main.md'), Path('docs/main.md'),
+        modified=clock.seconds2_ago,
+    )
+
+    assert workspace.read(Path('docs/main.md')) == cloud.read(Path('main.md'))
+    assert workspace.modified(Path('docs/main.md')) == clock.seconds2_ago
+
+
+def test_copy_from_cloud_differs_from_filler(workspace, cloud, clock):
+    """filler() is path-seeded, so a naive materialise at the new path
+    produces different bytes and cannot express a move."""
+    cloud.add(Path('main.md'), size=20, modified=clock.second_ago)
+    workspace.materialise(Path('docs/main.md'), 20, clock.seconds2_ago)
+    naive = sha256(workspace.read(Path('docs/main.md'))).hexdigest()
+
+    workspace.copy_from_cloud(
+        cloud, Path('main.md'), Path('docs/main.md'),
+        modified=clock.seconds2_ago,
+    )
+
+    assert sha256(workspace.read(Path('docs/main.md'))).hexdigest() != naive

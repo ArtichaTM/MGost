@@ -1,6 +1,7 @@
 from asyncio import sleep
 from functools import partial
 from json import JSONDecodeError
+from pathlib import Path
 from typing import Awaitable
 
 from aiopath import AsyncPath
@@ -151,6 +152,7 @@ async def _method_progress_upload(
         params=request.params,
         headers={"Content-Type": "application/octet-stream"}
     )
+    response.raise_for_status()
     return response
 
 
@@ -166,35 +168,49 @@ async def _method_progress_download(
     full_path = path
     path = path.relative_to(root_path)
 
-    if request.progress:
-        task = request.progress.add_task(
-            description=f"↓ {path}",
-            visible=True,
-            refresh=True,
-            bytes=True
-        )
-    total = None
+    # Same directory as the target, so the later os.replace is atomic
+    # and cannot cross a filesystem boundary.
+    temp_path = AsyncPath(
+        Path(full_path).parent / f'.{Path(full_path).name}.mgost-tmp'
+    )
+
     async with client.stream(
         request.method, request.url,
         params=request.params
     ) as resp:
+        # Status first: nothing on disk has been touched yet.
+        if resp.status_code >= 400:
+            await resp.aread()
+            try:
+                info = resp.json()
+                detail = info['detail']
+            except (JSONDecodeError, UnicodeDecodeError, KeyError):
+                detail = resp.text
+            raise APIRequestError(resp, detail)
+
+        task = None
+        if request.progress:
+            task = request.progress.add_task(
+                description=f"↓ {path}",
+                visible=True,
+                refresh=True,
+                bytes=True
+            )
+        total = None
         if 'content-length' in resp.headers:
             total = int(resp.headers['content-length'])
         if 'size' in resp.headers:
             total = int(resp.headers['size'])
-        if request.progress:
-            request.progress.update(
-                task,
-                total=total,
-                refresh=True
-            )
-        async with full_path.open('wb') as file:
-            if request.progress:
+        if request.progress and task is not None:
+            request.progress.update(task, total=total, refresh=True)
+
+        try:
+            async with temp_path.open('wb') as file:
                 async for chunk in resp.aiter_bytes():
-                    request.progress.update(task, advance=len(chunk))
+                    if request.progress and task is not None:
+                        request.progress.update(task, advance=len(chunk))
                     await file.write(chunk)
-            else:
-                async for chunk in resp.aiter_bytes():
-                    await file.write(chunk)
-        return resp
-    request.progress.update(visible=False)
+        except BaseException:
+            await temp_path.unlink(missing_ok=True)
+            raise
+    return resp

@@ -1,6 +1,7 @@
 import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from hashlib import sha256
 from pathlib import Path
 from urllib.parse import urlsplit
 
@@ -97,6 +98,7 @@ class FakeCloud(FileStore):
             created=self.created.get(path, self.modified(path)),
             modified=self.modified(path),
             size=self.stat(path).st_size,
+            hash=sha256(self.read(path)).hexdigest(),
         )
 
     def file_calls(self) -> list[Call]:

@@ -19,6 +19,9 @@ class ProjectFile(BaseModel):
     created: datetime
     modified: datetime
     size: int
+    hash: str = Field(
+        description="Lowercase hex SHA-256 digest of the file's raw bytes"
+    )
 
 
 class ProjectExtended(Project):

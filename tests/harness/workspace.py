@@ -1,3 +1,4 @@
+from datetime import datetime
 from pathlib import Path
 
 from ._base import FileStore
@@ -11,6 +12,20 @@ class Workspace(FileStore):
     __slots__ = ()
 
     EXCLUDED = '.mgost'
+
+    def copy_from_cloud(
+        self,
+        cloud: FileStore,
+        cloud_path: Path,
+        local_path: Path,
+        modified: datetime,
+    ) -> Path:
+        """Place the cloud file's exact bytes at a new local path.
+
+        `filler()` seeds content from the path, so `materialise` at a new
+        path yields different bytes and cannot express a move.
+        """
+        return self.write(local_path, cloud.read(cloud_path), modified)
 
     def paths(self) -> set[Path]:
         """Everything except the .mgost directory.
