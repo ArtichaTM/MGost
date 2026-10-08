@@ -51,12 +51,12 @@ async def _method_normal(
     assert request.response_file_path is None
     assert request.request_file_path is None
     assert not request.with_progress()
-    key = (request.method, request.url, request.params)
-    try:
-        if (value := cache.get(key)) is not None:
-            return value
-    except TypeError:
-        key = None
+    key = (
+        request.method, request.url,
+        tuple(sorted(QueryParams(request.params).multi_items()))
+    )
+    if (value := cache.get(key)) is not None:
+        return value
     kwargs = {
         'method': request.method,
         'url': request.url,
@@ -87,8 +87,7 @@ async def _method_normal(
             )
     except (JSONDecodeError, UnicodeDecodeError):
         pass
-    if key is not None:
-        cache[key] = resp
+    cache[key] = resp
     return resp
 
 

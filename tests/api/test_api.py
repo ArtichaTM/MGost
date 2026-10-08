@@ -67,3 +67,12 @@ async def test_trust_factors(respx_mock: respx.MockRouter, api):
     expected = {'Value1': 1, 'Value2': 2}
     respx_mock.get(f'{BASE_URL}/trust/factors').respond(200, json=expected)
     assert await api.trust_factors() == expected
+
+
+async def test_repeated_get_is_cached(respx_mock: respx.MockRouter, api):
+    route = respx_mock.get(f'{BASE_URL}/trust').respond(
+        200, json={'trust': 1}
+    )
+    assert await api.trust() == 1
+    assert await api.trust() == 1
+    assert route.call_count == 1

@@ -4,10 +4,7 @@ from pathlib import Path
 from typing import Awaitable, Literal
 
 from aiopath import AsyncPath
-from httpx import (
-    AsyncClient, ConnectError, HTTPStatusError, QueryParams, Response
-)
-from httpx._types import RequestFiles
+from httpx import AsyncClient, ConnectError, HTTPStatusError, Response
 from rich.progress import Progress
 
 from . import schemas
@@ -27,12 +24,7 @@ class ArtichaAPI:
     _base_url: str
     _token: str
     _client: AsyncClient | None
-    _cache: dict[tuple[
-        str,
-        str,
-        QueryParams | dict | None,
-        RequestFiles | dict | None
-    ], Response]
+    _cache: dict[tuple[str, str, tuple[tuple[str, str], ...]], Response]
 
     def __init__(
         self,
