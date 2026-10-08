@@ -62,6 +62,8 @@ async def _method_normal(
         'url': request.url,
         'params': request.params
     }
+    if request.timeout is not None:
+        kwargs['timeout'] = request.timeout
     if request.request_file_path is not None:
         kwargs['content'] = _file_chunker(
             request.request_file_path

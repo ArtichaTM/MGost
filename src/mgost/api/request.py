@@ -15,6 +15,8 @@ class APIRequestInfo:
     root_path: Path | None = None
     request_file_path: AsyncPath | None = None
     response_file_path: AsyncPath | None = None
+    # Seconds; `None` keeps the client default
+    timeout: float | None = None
 
     def with_progress(self) -> bool:
         return self.progress is not None

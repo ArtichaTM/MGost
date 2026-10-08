@@ -1,7 +1,7 @@
 from logging import ERROR, WARNING, getLogger
 from pathlib import Path
 
-from httpx import HTTPStatusError
+from httpx import HTTPStatusError, TimeoutException
 from rich.progress import Progress
 
 from mgost.api import APIRequestError, ArtichaAPI
@@ -92,6 +92,13 @@ class MGost:
             Console\
                 .echo('Не смог выполнить рендер в виду ошибки №')\
                 .echo(str(e.response.status_code), fg='red')\
+                .nl()
+            return
+        except TimeoutException:
+            Console\
+                .echo('Сервер не ответил за ')\
+                .echo(f'{self.api.RENDER_TIMEOUT:.0f} с', fg='red')\
+                .echo(', рендер прерван')\
                 .nl()
             return
         assert isinstance(result, BuildResult)

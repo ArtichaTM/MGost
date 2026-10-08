@@ -21,6 +21,7 @@ class ArtichaAPI:
         '_base_url',
     )
     _host: str = 'https://articha.ru/api'
+    RENDER_TIMEOUT: float = 300.
     _base_url: str
     _token: str
     _client: AsyncClient | None
@@ -315,7 +316,8 @@ class ArtichaAPI:
         :raises HTTPStatusError: Raised when got non-success code from the api
         """
         resp = await self.method(APIRequestInfo(
-            'GET', f'/mgost/project/{project_id}/render'
+            'GET', f'/mgost/project/{project_id}/render',
+            timeout=self.RENDER_TIMEOUT
         ))
         resp.raise_for_status()
         self._invalidate_cache()
