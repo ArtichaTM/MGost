@@ -235,18 +235,34 @@ class ArtichaAPI:
             ).isoformat()
         }
         files_url = f'/mgost/project/{project_id}/files'
-        if file_id is None:
-            method, url = 'POST', files_url
-            params['path'] = remote_path
-        else:
-            method, url = 'PUT', f'{files_url}/{file_id}'
-        await self.method(APIRequestInfo(
-            method, url,
-            params=params,
-            label=remote_path,
-            request_file_path=AsyncPath(local_path),
-            progress=progress
-        ))
+
+        def send(method: str, url: str, params: dict) -> Awaitable[Response]:
+            return self.method(APIRequestInfo(
+                method, url,
+                params=params,
+                label=remote_path,
+                request_file_path=AsyncPath(local_path),
+                progress=progress
+            ))
+
+        if file_id is not None:
+            await send('PUT', f'{files_url}/{file_id}', params)
+            self._invalidate_cache()
+            return
+        try:
+            await send('POST', files_url, {**params, 'path': remote_path})
+        except HTTPStatusError as e:
+            if e.response.status_code != 409:
+                raise
+            # Created on the server after our listing: overwrite it instead
+            self._invalidate_cache()
+            existing = next((
+                i for i in await self._files(project_id)
+                if i.path == remote_path
+            ), None)
+            if existing is None:
+                raise
+            await send('PUT', f'{files_url}/{existing.id}', params)
         self._invalidate_cache()
 
     async def download(

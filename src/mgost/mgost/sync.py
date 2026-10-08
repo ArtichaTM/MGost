@@ -299,9 +299,10 @@ async def plan_sync(mgost: 'MGost') -> SyncPlan:
     assert await mgost.api.is_project_available(project_id)
     root = mgost.project_root
     project = await mgost.api.project(project_id)
+    # Requirements first: answering them may create files on the server
+    requirements = await mgost.api.project_requirements(project_id)
     project_files = await mgost.api.project_files(project_id)
     fictional_files = await mgost.api.fictional_files(project_id)
-    requirements = await mgost.api.project_requirements(project_id)
 
     wanted = [project.path_to_markdown, project.path_to_docx]
     # Keyed by file id when uploaded: two spellings may name one file

@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 
-from tests.harness import Call
+from tests.harness import BASE_URL, Call
 
 MD = Path('main.md')
 DOCX = Path('output.docx')
@@ -285,3 +285,28 @@ async def test_row10_missing_requirement_makes_no_file_calls(
     await sync_project()
 
     assert [c for c in cloud.file_calls() if c.path == ghost] == []
+
+
+# --- Server creates a file while answering /requirements -------------------
+
+async def test_file_created_by_requirements_is_overwritten(
+    cloud, workspace, sync_project, clock
+):
+    """A new project gets main.md from the server mid-plan; no POST then"""
+    handle = cloud._handle_requirements
+
+    async def create_md(request):
+        if not cloud.exists(MD):
+            cloud.add(MD, size=20, modified=clock.ago(seconds=5))
+        return await handle(request)
+
+    # Same pattern, so respx updates the existing route in place
+    cloud.router.get(
+        f'{BASE_URL}/mgost/project/{cloud.project_id}/requirements'
+    ).mock(side_effect=create_md)
+    workspace.materialise(MD, size=21, modified=clock.now)
+
+    await sync_project()
+
+    assert Call('POST', MD) not in cloud.file_calls()
+    assert Call('PUT', MD) in cloud.file_calls()
