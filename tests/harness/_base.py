@@ -1,10 +1,14 @@
 from datetime import datetime, timezone
 from hashlib import sha256
+from os import name as os_name
 from os import stat_result, utime
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-__all__ = ('FileStore', 'filler')
+__all__ = ('FOREIGN', 'FileStore', 'filler')
+
+# Absolute only on the other OS, so no local file can exist under it
+FOREIGN = '/home/me/a.png' if os_name == 'nt' else 'C:\\Users\\me\\a.png'
 
 
 def filler(path: Path, size: int) -> bytes:

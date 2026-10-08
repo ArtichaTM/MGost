@@ -21,11 +21,11 @@ async def test_error_status_leaves_local_file_untouched(
     workspace.materialise(path, size=20, modified=clock.second_ago)
     original = workspace.read(path)
     respx_mock.get(
-        f'{BASE_URL}/mgost/project/1/files/main.md'
+        f'{BASE_URL}/mgost/project/1/files/7'
     ).respond(500, json={'detail': 'Internal server error'})
 
     with pytest.raises(APIRequestError):
-        await api.download(1, workspace.root, path, overwrite_ok=True)
+        await api.download(1, 7, workspace.root, path, overwrite_ok=True)
 
     assert workspace.read(path) == original
 
@@ -36,11 +36,11 @@ async def test_error_status_leaves_no_temp_file(
     path = Path('main.md')
     workspace.materialise(path, size=20, modified=clock.second_ago)
     respx_mock.get(
-        f'{BASE_URL}/mgost/project/1/files/main.md'
+        f'{BASE_URL}/mgost/project/1/files/7'
     ).respond(404, json={'detail': 'ProjectFile not found'})
 
     with pytest.raises(APIRequestError):
-        await api.download(1, workspace.root, path, overwrite_ok=True)
+        await api.download(1, 7, workspace.root, path, overwrite_ok=True)
 
     assert workspace.paths() == {path}
 
@@ -54,7 +54,8 @@ async def test_refuses_to_overwrite_when_not_allowed(
     original = workspace.read(path)
 
     await api.download(
-        cloud.project_id, workspace.root, path, overwrite_ok=False
+        cloud.project_id, cloud.id_of(path), workspace.root, path,
+        overwrite_ok=False,
     )
 
     assert workspace.read(path) == original
@@ -67,7 +68,8 @@ async def test_successful_download_replaces_and_stamps_mtime(
     cloud.add(path, size=20, modified=clock.second_ago)
 
     await api.download(
-        cloud.project_id, workspace.root, path, overwrite_ok=True
+        cloud.project_id, cloud.id_of(path), workspace.root, path,
+        overwrite_ok=True,
     )
 
     assert workspace.read(path) == cloud.read(path)

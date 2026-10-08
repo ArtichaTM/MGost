@@ -61,6 +61,7 @@ class PathAction(Action, ABC):
 
 @dataclass(frozen=True, slots=True)
 class MoveAction(PathAction, ABC):
+    file_id: int
     new_path: Path
 
 
@@ -71,18 +72,15 @@ class DoNothing(APICompletableAction):
 
 
 @dataclass(frozen=True, slots=True)
-class PostProgressMessageAction(
-    APICompletableAction,
-    PathAction,
-    PostProgressAction
-):
+class PostProgressMessageAction(APICompletableAction, PostProgressAction):
+    label: str
     progress_message: str
     console_message: Callable[[], None]
 
     async def complete_api(self, api: 'ArtichaAPI', progress=None):
         if progress is not None:
             progress.add_task(
-                description=f"? {self.path}",
+                description=f"? {self.label}",
                 visible=True,
                 refresh=True,
                 bytes=False,
@@ -95,26 +93,36 @@ class PostProgressMessageAction(
 
 
 @dataclass(frozen=True, slots=True)
-class UploadFileAction(APICompletableAction, PathAction):
-    overwrite: bool
+class UploadFileAction(APICompletableAction):
+    """POSTs under `remote_path` without `file_id`, PUTs over it with one"""
+
+    project_id: int
+    local_path: Path
+    remote_path: str
+    file_id: int | None
+
+    def __post_init__(self) -> None:
+        assert self.local_path.is_absolute()
 
     async def complete_api(self, api: 'ArtichaAPI', progress=None):
         await api.upload(
             project_id=self.project_id,
-            root_path=self.root_path,
-            path=self.path,
-            overwrite=self.overwrite,
+            local_path=self.local_path,
+            remote_path=self.remote_path,
+            file_id=self.file_id,
             progress=progress
         )
 
 
 @dataclass(frozen=True, slots=True)
 class DownloadFileAction(APICompletableAction, PathAction):
+    file_id: int
     overwrite_ok: bool
 
     async def complete_api(self, api: 'ArtichaAPI', progress=None):
         await api.download(
             project_id=self.project_id,
+            file_id=self.file_id,
             root_path=self.root_path,
             path=self.path,
             overwrite_ok=self.overwrite_ok,
@@ -128,18 +136,16 @@ class FileMovedLocally(APICompletableAction, MoveAction):
 
     PATCH is not one option among several: the server updates the
     project's markdown and docx pointers when the moved path matches
-    one of them, and no other operation does. PUT at the new path
-    returns 404 because there is nothing there yet, and POST+DELETE
-    would move the bytes while leaving the project pointing at a path
-    that no longer exists.
+    one of them, and no other operation does. POST+DELETE would move
+    the bytes while leaving the project pointing at a path that no
+    longer exists.
     """
 
     async def complete_api(self, api: 'ArtichaAPI', progress=None):
         assert self.path != self.new_path
         await api.move_on_cloud(
             project_id=self.project_id,
-            root_path=self.root_path,
-            old_path=self.path,
+            file_id=self.file_id,
             new_path=self.new_path
         )
 
@@ -150,6 +156,7 @@ class FileMovedAndEditedLocally(APICompletableAction, MoveAction):
 
     Two strictly ordered calls: PATCH establishes where the file is,
     then one transfer settles what is in it. They cannot be gathered.
+    The id survives the move, so the transfer addresses the same file.
     """
 
     local_newer: bool
@@ -158,29 +165,23 @@ class FileMovedAndEditedLocally(APICompletableAction, MoveAction):
         assert self.path != self.new_path
         await api.move_on_cloud(
             project_id=self.project_id,
-            root_path=self.root_path,
-            old_path=self.path,
+            file_id=self.file_id,
             new_path=self.new_path
         )
         if self.local_newer:
             await api.upload(
                 project_id=self.project_id,
-                root_path=self.root_path,
-                path=self.new_path,
-                overwrite=True,
+                local_path=self.root_path / self.new_path,
+                remote_path=self.new_path.as_posix(),
+                file_id=self.file_id,
                 progress=progress
             )
         else:
             await api.download(
                 project_id=self.project_id,
+                file_id=self.file_id,
                 root_path=self.root_path,
                 path=self.new_path,
                 overwrite_ok=True,
                 progress=progress
             )
-
-
-@dataclass(frozen=True, slots=True)
-class FileSync(MGostCompletableAction, PathAction):
-    async def complete_mgost(self, mgost: 'MGost', progress=None) -> Action:
-        return await mgost.sync_file(self.project_id, self.path)

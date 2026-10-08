@@ -29,11 +29,11 @@ async def test_failed_upload_raises(
     path = Path('main.md')
     workspace.materialise(path, size=20, modified=clock.second_ago)
     respx_mock.post(
-        f'{BASE_URL}/mgost/project/1/files/main.md'
+        f'{BASE_URL}/mgost/project/1/files', params={'path': 'main.md'}
     ).respond(status, json={'detail': detail})
 
     with pytest.raises(httpx.HTTPStatusError):
-        await api.upload(1, workspace.root, path, overwrite=False)
+        await api.upload(1, workspace.root / path, 'main.md', None)
 
 
 async def test_failed_overwrite_raises(
@@ -42,11 +42,11 @@ async def test_failed_overwrite_raises(
     path = Path('main.md')
     workspace.materialise(path, size=20, modified=clock.second_ago)
     respx_mock.put(
-        f'{BASE_URL}/mgost/project/1/files/main.md'
+        f'{BASE_URL}/mgost/project/1/files/7'
     ).respond(404, json={'detail': 'ProjectFile not found'})
 
     with pytest.raises(httpx.HTTPStatusError):
-        await api.upload(1, workspace.root, path, overwrite=True)
+        await api.upload(1, workspace.root / path, 'main.md', 7)
 
 
 async def test_every_request_carries_lang(cloud, api):

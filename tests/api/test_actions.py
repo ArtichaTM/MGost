@@ -17,7 +17,7 @@ def test_absolute_path_is_rejected(workspace):
     with pytest.raises(AssertionError):
         FileMovedLocally(
             workspace.root, 1,
-            workspace.root / 'main.md', Path('docs/main.md'),
+            workspace.root / 'main.md', 1, Path('docs/main.md'),
         )
 
 
@@ -29,7 +29,7 @@ async def test_move_patches_only(cloud, api, workspace, clock):
 
     await FileMovedLocally(
         workspace.root, cloud.project_id,
-        Path('main.md'), Path('docs/main.md'),
+        Path('main.md'), cloud.id_of(Path('main.md')), Path('docs/main.md'),
     ).complete_api(api)
 
     assert cloud.file_calls() == [
@@ -46,7 +46,8 @@ async def test_move_and_edit_local_newer_patches_then_puts(
 
     await FileMovedAndEditedLocally(
         workspace.root, cloud.project_id,
-        Path('main.md'), Path('docs/main.md'), local_newer=True,
+        Path('main.md'), cloud.id_of(Path('main.md')), Path('docs/main.md'),
+        local_newer=True,
     ).complete_api(api)
 
     assert [c.method for c in cloud.calls] == ['PATCH', 'PUT']
@@ -65,7 +66,8 @@ async def test_move_and_edit_cloud_newer_patches_then_gets(
 
     await FileMovedAndEditedLocally(
         workspace.root, cloud.project_id,
-        Path('main.md'), Path('docs/main.md'), local_newer=False,
+        Path('main.md'), cloud.id_of(Path('main.md')), Path('docs/main.md'),
+        local_newer=False,
     ).complete_api(api)
 
     assert [c.method for c in cloud.calls] == ['PATCH', 'GET']

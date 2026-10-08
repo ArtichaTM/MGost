@@ -13,12 +13,27 @@ class Project(BaseModel):
     modified: datetime
 
 
-class ProjectFile(BaseModel):
+class ProjectFileBase(BaseModel):
+    id: int
     project_id: int
-    path: str
+    path: str = Field(
+        description=(
+            "Root-relative path, or for a fictional file the path exactly "
+            "as it was uploaded"
+        )
+    )
+    fictional: bool = Field(
+        description=(
+            "Uploaded under a path outside the project: absolute, or "
+            "climbing out with `..`"
+        )
+    )
     created: datetime
     modified: datetime
     size: int
+
+
+class ProjectFile(ProjectFileBase):
     hash: str = Field(
         description="Lowercase hex SHA-256 digest of the file's raw bytes"
     )
@@ -58,7 +73,12 @@ class ListParameters(BaseModel):
 
 
 class FileRequirement(BaseModel):
-    path: str
+    path: str = Field(
+        description="Root-relative, or absolute as written in the markdown"
+    )
+    file_id: int | None = Field(
+        description="The uploaded file this path resolves to, if any"
+    )
 
 
 class FileRename(BaseModel):
@@ -76,6 +96,13 @@ class LogEntry(BaseModel):
         description=f"Level of log from {INFO} to {ERROR}"
     )
     message: str
+    code: str | None = Field(
+        default=None,
+        description=(
+            "Stable machine identifier the converter gave this message, "
+            "e.g. `macros.file_missing`; absent on site-authored entries"
+        )
+    )
 
 
 class BuildResult(BaseModel):

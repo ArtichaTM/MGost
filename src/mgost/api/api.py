@@ -172,27 +172,36 @@ class ArtichaAPI:
         )
 
     async def project_requirements(
-        self, project_id
-    ) -> dict[str, schemas.FileRequirement]:
+        self, project_id: int
+    ) -> list[schemas.FileRequirement]:
         assert isinstance(project_id, int)
         resp = await self.method(APIRequestInfo(
             'GET', f'/mgost/project/{project_id}/requirements'
         ))
-        return {
-            k: schemas.FileRequirement(
-                **v
-            ) for k, v in resp.json().items()
-        }
+        return [schemas.FileRequirement(**i) for i in resp.json()]
 
-    async def project_files(
-        self, project_id: int
-    ) -> dict[Path, schemas.ProjectFile]:
+    async def _files(self, project_id: int) -> list[schemas.ProjectFile]:
         assert isinstance(project_id, int)
         resp = await self.method(APIRequestInfo(
             'GET', f'/mgost/project/{project_id}/files'
         ))
+        return [schemas.ProjectFile(**i) for i in resp.json()]
+
+    async def project_files(
+        self, project_id: int
+    ) -> dict[Path, schemas.ProjectFile]:
+        """Files inside the project, by root-relative path"""
         return {
-            Path(i['path']): schemas.ProjectFile(**i) for i in resp.json()
+            Path(i.path): i
+            for i in await self._files(project_id) if not i.fictional
+        }
+
+    async def fictional_files(
+        self, project_id: int
+    ) -> dict[int, schemas.ProjectFile]:
+        """Files uploaded under a path outside the project, by id"""
+        return {
+            i.id: i for i in await self._files(project_id) if i.fictional
         }
 
     async def create_project(self, name: str) -> int:
@@ -208,67 +217,60 @@ class ArtichaAPI:
     async def upload(
         self,
         project_id: int,
-        root_path: Path,
-        path: Path,
-        overwrite: bool,
+        local_path: Path,
+        remote_path: str,
+        file_id: int | None,
         progress: Progress | None = None
     ) -> None:
-        assert root_path.is_absolute()
-        assert not path.is_absolute()
+        """POSTs a new file under `remote_path`, or PUTs over `file_id`"""
         assert isinstance(project_id, int)
-        assert isinstance(path, Path)
-        assert isinstance(overwrite, bool)
-        assert not path.is_relative_to(root_path)
-        full_path = root_path / path
-        if not (full_path.exists() and full_path.is_file()):
+        assert local_path.is_absolute()
+        assert isinstance(remote_path, str)
+        assert file_id is None or isinstance(file_id, int)
+        if not local_path.is_file():
             raise FileNotFoundError
         params: dict = {
-            'project_id': project_id,
             'modify_time': datetime.fromtimestamp(
-                full_path.lstat().st_mtime, timezone.utc
+                local_path.lstat().st_mtime, timezone.utc
             ).isoformat()
         }
-        path_str = self._path_to_url(path)
-        if overwrite:
-            await self.method(APIRequestInfo(
-                'PUT',
-                f'/mgost/project/{project_id}/files/{path_str}',
-                params=params,
-                root_path=root_path,
-                request_file_path=AsyncPath(full_path),
-                progress=progress
-            ))
+        files_url = f'/mgost/project/{project_id}/files'
+        if file_id is None:
+            method, url = 'POST', files_url
+            params['path'] = remote_path
         else:
-            await self.method(APIRequestInfo(
-                'POST',
-                f'/mgost/project/{project_id}/files/{path_str}',
-                params=params,
-                root_path=root_path,
-                request_file_path=AsyncPath(full_path),
-                progress=progress
-            ))
+            method, url = 'PUT', f'{files_url}/{file_id}'
+        await self.method(APIRequestInfo(
+            method, url,
+            params=params,
+            label=remote_path,
+            request_file_path=AsyncPath(local_path),
+            progress=progress
+        ))
         self._invalidate_cache()
 
     async def download(
         self,
         project_id: int,
+        file_id: int,
         root_path: Path,
         path: Path,
         overwrite_ok: bool = True,
         progress: Progress | None = None
     ) -> None:
         assert isinstance(project_id, int)
+        assert isinstance(file_id, int)
         assert isinstance(root_path, Path)
         assert isinstance(path, Path)
+        assert not path.is_absolute()
         assert isinstance(overwrite_ok, bool)
         full_path = root_path / path
         temp_path = full_path.parent / f'.{full_path.name}.mgost-tmp'
-        path_str = self._path_to_url(path)
         full_path.parent.mkdir(parents=True, exist_ok=True)
         try:
             resp = await self.method(APIRequestInfo(
-                'GET', f'/mgost/project/{project_id}/files/{path_str}',
-                root_path=root_path,
+                'GET', f'/mgost/project/{project_id}/files/{file_id}',
+                label=self._path_to_url(path),
                 response_file_path=AsyncPath(full_path),
                 progress=progress
             ))
@@ -281,29 +283,22 @@ class ArtichaAPI:
         finally:
             temp_path.unlink(missing_ok=True)
         access_time = full_path.lstat().st_atime
-        project_files = await self.project_files(project_id)
-        project_file = project_files[path]
+        files = await self._files(project_id)
+        project_file = next(i for i in files if i.id == file_id)
         utime(full_path, (access_time, project_file.modified.timestamp()))
 
     async def move_on_cloud(
         self,
         project_id: int,
-        root_path: Path,
-        old_path: Path,
+        file_id: int,
         new_path: Path
     ) -> bool:
-        assert root_path.is_absolute()
-        assert not old_path.is_absolute()
+        assert isinstance(file_id, int)
         assert not new_path.is_absolute()
-        assert not new_path.is_relative_to(root_path)
-        assert not old_path.is_relative_to(root_path)
-        old_path_str = self._path_to_url(old_path)
-        new_path_str = self._path_to_url(new_path)
         resp = await self.method(APIRequestInfo(
             method='PATCH',
-            url=f'/mgost/project/{project_id}/files/{old_path_str}',
-            root_path=root_path,
-            params={'target': new_path_str}
+            url=f'/mgost/project/{project_id}/files/{file_id}',
+            params={'target': self._path_to_url(new_path)}
         ))
         self._invalidate_cache()
         return schemas.Message(**resp.json()).is_ok()

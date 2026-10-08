@@ -127,18 +127,14 @@ async def _method_progress_upload(
     client: AsyncClient,
     request: APIRequestInfo
 ) -> Response:
-    path = request.request_file_path
-    root_path = request.root_path
-    assert root_path is not None
-    assert path is not None
-    assert path.is_relative_to(root_path)
-    full_path = path
-    path = path.relative_to(root_path)
+    full_path = request.request_file_path
+    assert full_path is not None
+    assert request.label is not None
 
     task_id = None
     if request.progress:
         task_id = request.progress.add_task(
-            description=f"↑ {path}",
+            description=f"↑ {request.label}",
             total=(await full_path.lstat()).st_size,
             visible=True,
             bytes=True
@@ -161,13 +157,9 @@ async def _method_progress_download(
     client: AsyncClient,
     request: APIRequestInfo
 ) -> Response:
-    path = request.response_file_path
-    root_path = request.root_path
-    assert root_path is not None
-    assert path is not None
-    assert path.is_relative_to(root_path)
-    full_path = path
-    path = path.relative_to(root_path)
+    full_path = request.response_file_path
+    assert full_path is not None
+    assert request.label is not None
 
     # Same directory as the target, so the later os.replace is atomic
     # and cannot cross a filesystem boundary.
@@ -192,7 +184,7 @@ async def _method_progress_download(
         task = None
         if request.progress:
             task = request.progress.add_task(
-                description=f"↓ {path}",
+                description=f"↓ {request.label}",
                 visible=True,
                 refresh=True,
                 bytes=True

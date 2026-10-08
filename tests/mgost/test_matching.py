@@ -59,8 +59,10 @@ def test_records_mtime_as_aware_utc(workspace, clock):
 
 def cloud_file(path: Path, data: bytes, modified: datetime) -> ProjectFile:
     return ProjectFile(
+        id=1,
         project_id=1,
         path=path.as_posix(),
+        fictional=False,
         created=modified,
         modified=modified,
         size=len(data),

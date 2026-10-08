@@ -9,7 +9,7 @@ from mgost.api.schemas.mgost import BuildResult
 from mgost.console import Console
 from mgost.settings import MGostInfo
 
-from .sync import sync, sync_file
+from .sync import sync
 from .utils import project_valid
 
 logger = getLogger(__name__)
@@ -78,11 +78,6 @@ class MGost:
     async def sync_files(self) -> None:
         return await sync(self)
 
-    async def sync_file(self, project_id: int, path: Path):
-        assert isinstance(project_id, int)
-        assert isinstance(path, Path)
-        return await sync_file(self, project_id, path)
-
     async def render(self) -> None:
         Console.echo("Начинаю рендер").nl()
         assert self.info.settings.project_id is not None
@@ -135,6 +130,15 @@ class MGost:
             project = await self.api.project(
                 self.info.settings.project_id
             )
+            files = await self.api.project_files(project.id)
+            docx = files.get(project.path_to_docx)
+            if docx is None:
+                Console\
+                    .echo('Документ ')\
+                    .echo('не найден', fg='red')\
+                    .echo(' в облаке')\
+                    .nl()
+                return
             Console\
                 .echo('Скачивание документа')
             try:
@@ -143,6 +147,7 @@ class MGost:
                         progress = None
                     await self.api.download(
                         project_id=project.id,
+                        file_id=docx.id,
                         root_path=self.project_root,
                         path=project.path_to_docx,
                         overwrite_ok=True,

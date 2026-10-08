@@ -71,7 +71,30 @@ async def test_empty_files_share_a_digest(cloud, api, clock):
 async def test_requirements(cloud, api):
     cloud.requirements.append(Path('images/i.png'))
     reqs = await api.project_requirements(cloud.project_id)
-    assert list(reqs) == ['images/i.png']
+    assert [(r.path, r.file_id) for r in reqs] == [('images/i.png', None)]
+
+
+async def test_requirements_resolve_file_ids(cloud, api, clock):
+    cloud.add(Path('a.png'), size=3, modified=clock.second_ago)
+    file_id = cloud.add_fictional('/home/u/b.png', 4, clock.second_ago)
+    cloud.requirements += [Path('a.png'), '/home/u/b.png']
+
+    reqs = await api.project_requirements(cloud.project_id)
+
+    assert [r.file_id for r in reqs] == [cloud.id_of(Path('a.png')), file_id]
+
+
+async def test_fictional_files_are_listed_apart(cloud, api, clock):
+    cloud.add(Path('main.md'), size=20, modified=clock.second_ago)
+    file_id = cloud.add_fictional('C:\\a.png', 4, clock.second_ago)
+
+    ordinary = await api.project_files(cloud.project_id)
+    fictional = await api.fictional_files(cloud.project_id)
+
+    assert set(ordinary) == {Path('main.md')}
+    assert fictional[file_id].path == 'C:\\a.png'
+    assert fictional[file_id].fictional
+    assert cloud.paths() == {Path('main.md')}
 
 
 async def test_create_project_returns_new_id(cloud, api):
@@ -94,9 +117,7 @@ def test_call_of_leaves_target_none_without_param():
 
 async def test_post_creates_file(cloud, api, tmp_path):
     (tmp_path / 'new.md').write_bytes(b'x' * 12)
-    await api.upload(
-        cloud.project_id, tmp_path, Path('new.md'), overwrite=False
-    )
+    await api.upload(cloud.project_id, tmp_path / 'new.md', 'new.md', None)
     assert cloud.exists(Path('new.md'))
     assert cloud.stat(Path('new.md')).st_size == 12
     assert cloud.file_calls() == [Call('POST', Path('new.md'))]
@@ -109,7 +130,7 @@ async def test_put_overwrites_and_updates_mtime(cloud, api, clock, tmp_path):
     utime(local, (clock.now.timestamp(), clock.now.timestamp()))
 
     await api.upload(
-        cloud.project_id, tmp_path, Path('main.md'), overwrite=True
+        cloud.project_id, local, 'main.md', cloud.id_of(Path('main.md'))
     )
 
     assert cloud.stat(Path('main.md')).st_size == 33
@@ -119,19 +140,23 @@ async def test_put_overwrites_and_updates_mtime(cloud, api, clock, tmp_path):
 
 async def test_get_returns_stored_bytes(cloud, api, clock, tmp_path):
     cloud.add(Path('main.md'), size=64, modified=clock.second_ago)
-    await api.download(cloud.project_id, tmp_path, Path('main.md'))
+    await api.download(
+        cloud.project_id, cloud.id_of(Path('main.md')),
+        tmp_path, Path('main.md'),
+    )
     assert (tmp_path / 'main.md').read_bytes() == cloud.read(Path('main.md'))
     assert cloud.file_calls() == [Call('GET', Path('main.md'))]
 
 
-async def test_patch_moves_and_records_target(cloud, api, clock, tmp_path):
+async def test_patch_moves_and_records_target(cloud, api, clock):
     cloud.add(Path('main.md'), size=20, modified=clock.second_ago)
 
-    await api.move_on_cloud(
-        cloud.project_id, tmp_path, Path('main.md'), Path('sub/main.md')
-    )
+    file_id = cloud.id_of(Path('main.md'))
+
+    await api.move_on_cloud(cloud.project_id, file_id, Path('sub/main.md'))
 
     assert cloud.paths() == {Path('sub/main.md')}
+    assert cloud.id_of(Path('sub/main.md')) == file_id
     assert cloud.file_calls() == [
         Call('PATCH', Path('main.md'), Path('sub/main.md'))
     ]
@@ -142,13 +167,21 @@ async def test_post_on_existing_file_is_rejected(cloud, api, clock, tmp_path):
     (tmp_path / 'main.md').write_bytes(b'z' * 20)
     with pytest.raises(AssertionError, match='POST on existing'):
         await api.upload(
-            cloud.project_id, tmp_path, Path('main.md'), overwrite=False
+            cloud.project_id, tmp_path / 'main.md', 'main.md', None
         )
 
 
 async def test_put_on_missing_file_is_rejected(cloud, api, tmp_path):
     (tmp_path / 'ghost.md').write_bytes(b'z')
     with pytest.raises(AssertionError, match='PUT on missing'):
-        await api.upload(
-            cloud.project_id, tmp_path, Path('ghost.md'), overwrite=True
-        )
+        await api.upload(cloud.project_id, tmp_path / 'ghost.md', 'ghost.md', 999)
+
+
+async def test_post_outside_the_project_stores_fictional(cloud, api, tmp_path):
+    (tmp_path / 'a.png').write_bytes(b'x' * 5)
+
+    await api.upload(cloud.project_id, tmp_path / 'a.png', '../a.png', None)
+
+    assert cloud.paths() == set()
+    assert list(cloud.fictional.values()) == ['../a.png']
+    assert cloud.file_calls() == [Call('POST', Path('../a.png'))]

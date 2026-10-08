@@ -15,6 +15,7 @@ from mgost.api.actions import (
 from mgost.console import Console
 
 from .matching import Match, Matcher, collect_candidates, file_digest
+from .paths import External, classify
 from .progress_utils import BytesOrIntColumn
 
 if TYPE_CHECKING:
@@ -23,7 +24,7 @@ if TYPE_CHECKING:
     from .mgost import MGost
 
 
-__all__ = ('sync', 'sync_file')
+__all__ = ('sync', )
 
 logger = getLogger(__name__)
 
@@ -62,18 +63,18 @@ def _move_action(
     mgost: 'MGost',
     project_id: int,
     match: Match,
-    cloud_modified: datetime,
+    cloud_file: 'ProjectFile',
 ) -> MGostCompletableAction:
     if match.rung == 1:
         return FileMovedLocally(
             mgost.project_root, project_id,
-            match.cloud_path, match.local_path
+            match.cloud_path, cloud_file.id, match.local_path
         )
     return FileMovedAndEditedLocally(
         mgost.project_root, project_id,
-        match.cloud_path, match.local_path,
+        match.cloud_path, cloud_file.id, match.local_path,
         local_newer=_local_is_newer(
-            mgost, match.local_path, cloud_modified
+            mgost, match.local_path, cloud_file.modified
         )
     )
 
@@ -101,7 +102,7 @@ async def sync_file(
         case True, False:
             logger.info(f'File "{path}" exists only locally')
             plan.actions.append(UploadFileAction(
-                mgost.project_root, project_id, path, False
+                project_id, full_path, path.as_posix(), None
             ))
         case False, True:
             plan.actions.append(_cloud_only_action(
@@ -112,9 +113,7 @@ async def sync_file(
                 mgost, project_id, path, project_files[path], full_path
             ))
         case False, False:
-            plan.actions.append(_missing_everywhere_action(
-                mgost, project_id, path
-            ))
+            plan.actions.append(_missing_everywhere_action(path.as_posix()))
 
 
 def _cloud_only_action(
@@ -126,12 +125,12 @@ def _cloud_only_action(
     plan: SyncPlan,
 ) -> MGostCompletableAction:
     download = DownloadFileAction(
-        mgost.project_root, project_id, path, False
+        mgost.project_root, project_id, path, cloud_file.id, False
     )
     if match is None:
         logger.info(f'File "{path}" exists only on cloud')
         return download
-    action = _move_action(mgost, project_id, match, cloud_file.modified)
+    action = _move_action(mgost, project_id, match, cloud_file)
     if match.rung == 1:
         return action
     plan.questions.append(Question(
@@ -180,7 +179,7 @@ def _both_present_action(
         )
         return DownloadFileAction(
             mgost.project_root, project_id,
-            path, True
+            path, cloud_file.id, True
         )
     elif difference > 0:
         logger.info(
@@ -189,42 +188,94 @@ def _both_present_action(
             ')'
         )
         return UploadFileAction(
-            mgost.project_root, project_id,
-            path, True
+            project_id, full_path, path.as_posix(), cloud_file.id
         )
     return DoNothing()
 
 
-def _missing_everywhere_action(
-    mgost: 'MGost',
-    project_id: int,
-    path: Path,
-) -> MGostCompletableAction:
-    logger.info(
-        f'File "{path}" does not exist neither '
-        'locally or on cloud'
+def _message_action(
+    label: str, *segments: str | tuple[str, str]
+) -> PostProgressMessageAction:
+    """Printed once progress output closes; a tuple is `(text, colour)`"""
+    def console_message() -> None:
+        for segment in segments:
+            if isinstance(segment, tuple):
+                Console.echo(segment[0], fg=segment[1])
+            else:
+                Console.echo(segment)
+        Console.force_nl()
+    return PostProgressMessageAction(
+        label=label,
+        progress_message=''.join(
+            i[0] if isinstance(i, tuple) else i for i in segments
+        ),
+        console_message=console_message
     )
 
-    def error_console():
-        Console\
-            .echo("Требуется файл ")\
-            .echo(f"{path}", fg="cyan")\
-            .echo(", однако он ")\
-            .echo("не найден", fg="red")\
-            .echo(" ни локально, ни в облаке")\
-            .force_nl()
-    assert mgost.info.settings.project_id is not None
-    return PostProgressMessageAction(
-        root_path=mgost.project_root,
-        project_id=mgost.info.settings.project_id,
-        path=path,
-        progress_message=(
-            f'Требуется файл {path}, '
-            'однако он не найден '
-            'ни локально, ни в облаке'
-        ),
-        console_message=error_console
+
+def _missing_everywhere_action(label: str) -> MGostCompletableAction:
+    logger.info(
+        f'File "{label}" does not exist neither '
+        'locally or on cloud'
     )
+    return _message_action(
+        label,
+        'Требуется файл ', (label, 'cyan'), ', однако он ',
+        ('не найден', 'red'), ' ни локально, ни в облаке'
+    )
+
+
+def _external_actions(
+    mgost: 'MGost',
+    project_id: int,
+    external: External,
+    cloud_file: 'ProjectFile | None',
+    md_dir: Path,
+) -> list[MGostCompletableAction]:
+    """Upload-only: nothing is ever written outside the project"""
+    written = external.written
+    local = external.local
+    actions: list[MGostCompletableAction] = []
+    if local is not None and local.is_relative_to(mgost.project_root):
+        actions.append(_message_action(
+            written,
+            'Путь ', (written, 'cyan'), ' указывает внутрь папки проекта, '
+            'запишите его относительно: ',
+            (local.relative_to(md_dir, walk_up=True).as_posix(), 'green')
+        ))
+    if local is None or not local.is_file():
+        if cloud_file is None:
+            actions.append(_missing_everywhere_action(written))
+        else:
+            logger.info(f'External file "{written}" exists only on cloud')
+            actions.append(_message_action(
+                written,
+                'Внешний файл ', (written, 'cyan'),
+                ' не найден локально, в документ попадёт копия из облака'
+            ))
+        return actions
+    if cloud_file is None:
+        logger.info(f'External file "{written}" exists only locally')
+        actions.append(UploadFileAction(project_id, local, written, None))
+        return actions
+    if (
+        local.lstat().st_size == cloud_file.size
+        and file_digest(local) == cloud_file.hash
+    ):
+        logger.info(f'External file "{written}" identical on both sides')
+        return actions
+    local_mt = datetime.fromtimestamp(local.lstat().st_mtime, tz=timezone.utc)
+    if (cloud_file.modified - local_mt).total_seconds() >= 1:
+        actions.append(_message_action(
+            written,
+            'Внешний файл ', (written, 'cyan'), ' в облаке ',
+            ('новее', 'yellow'), ' локального, облачная копия заменена'
+        ))
+    logger.info(f'External file "{written}" differs, uploading')
+    actions.append(UploadFileAction(
+        project_id, local, written, cloud_file.id
+    ))
+    return actions
 
 
 async def complete_with_progress(
@@ -246,24 +297,41 @@ async def plan_sync(mgost: 'MGost') -> SyncPlan:
     project_id = mgost.info.settings.project_id
     assert project_id is not None
     assert await mgost.api.is_project_available(project_id)
+    root = mgost.project_root
     project = await mgost.api.project(project_id)
     project_files = await mgost.api.project_files(project_id)
+    fictional_files = await mgost.api.fictional_files(project_id)
     requirements = await mgost.api.project_requirements(project_id)
 
-    wanted = [
-        project.path_to_markdown,
-        project.path_to_docx,
-        *(Path(r) for r in requirements),
-    ]
+    wanted = [project.path_to_markdown, project.path_to_docx]
+    # Keyed by file id when uploaded: two spellings may name one file
+    externals: dict[int | str, tuple[External, 'ProjectFile | None']] = {}
+    for requirement in requirements:
+        kind = classify(root, requirement.path)
+        if isinstance(kind, Path):
+            wanted.append(kind)
+            continue
+        cloud_file = None
+        if requirement.file_id is not None:
+            cloud_file = fictional_files.get(requirement.file_id)
+        key = kind.written if cloud_file is None else cloud_file.id
+        externals.setdefault(key, (kind, cloud_file))
+
+    # An absolute path into the project is still external, so its local
+    # file mustn't stand in for a moved ordinary one
+    inside = {
+        external.local.relative_to(root)
+        for external, _ in externals.values()
+        if external.local is not None and external.local.is_relative_to(root)
+    }
     missing = {
         path: project_files[path]
         for path in wanted
         if path in project_files
-        and not (mgost.project_root / path).exists()
+        and not (root / path).exists()
     }
     matcher = Matcher(
-        mgost.project_root,
-        collect_candidates(mgost.project_root, tracked=project_files),
+        root, collect_candidates(root, tracked={*project_files, *inside}),
     )
     matches = {m.cloud_path: m for m in matcher.resolve(missing)}
 
@@ -272,6 +340,11 @@ async def plan_sync(mgost: 'MGost') -> SyncPlan:
         await sync_file(
             mgost, project_id, path, plan, matches.get(path)
         )
+    md_dir = root / project.path_to_markdown.parent
+    for external, cloud_file in externals.values():
+        plan.actions.extend(_external_actions(
+            mgost, project_id, external, cloud_file, md_dir
+        ))
     return plan
 
 

@@ -2,7 +2,8 @@ import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from hashlib import sha256
-from pathlib import Path
+from os.path import normpath
+from pathlib import Path, PurePosixPath, PureWindowsPath
 from urllib.parse import urlsplit
 
 import respx
@@ -23,8 +24,21 @@ API_PREFIX = urlsplit(BASE_URL).path
 
 FILE_RE = re.compile(
     rf'^{re.escape(API_PREFIX)}/mgost/project/(?P<pid>\d+)'
-    r'/files/(?P<path>.+)$'
+    r'/files/(?P<fid>\d+)$'
 )
+
+# Where fictional files are stored; hidden from `paths()`
+FICTIONAL = Path('.fictional')
+
+
+def is_fictional(written: str) -> bool:
+    """The server's rule: absolute, or climbing out of the root"""
+    if PurePosixPath(written).is_absolute():
+        return True
+    if PureWindowsPath(written).is_absolute():
+        return True
+    normal = normpath(written.replace('\\', '/'))
+    return normal == '..' or normal.startswith('../')
 
 
 @dataclass(frozen=True, slots=True)
@@ -32,7 +46,8 @@ class Call:
     """One recorded file-endpoint request.
 
     `path` is a Path, not a str: Path equality and ordering are the same
-    on every platform, while str(Path('a/b')) is 'a\\b' on Windows.
+    on every platform, while str(Path('a/b')) is 'a\\b' on Windows. A
+    fictional file's `path` is `Path(written)`.
     """
 
     method: str
@@ -51,6 +66,7 @@ class FakeCloud(FileStore):
     __slots__ = (
         'router', 'project_id', 'name', 'md', 'docx',
         'created', 'requirements', 'calls', 'endpoints', '_next_id',
+        '_ids', 'fictional',
     )
 
     EXAMPLE_SIZE = 200
@@ -72,10 +88,15 @@ class FakeCloud(FileStore):
         # `created` cannot live on the filesystem: it is a birth time,
         # which Linux does not expose and no platform lets you set.
         self.created: dict[Path, datetime] = {}
-        self.requirements: list[Path] = []
+        # A Path is an ordinary requirement, a str is written as-is
+        self.requirements: list[Path | str] = []
         self.calls: list[Call] = []
         self.endpoints: list[str] = []
         self._next_id = project_id + 1
+        # Ordinary file ids, assigned on first sight like a DB row's
+        self._ids: dict[Path, int] = {}
+        # Fictional file id -> path as written
+        self.fictional: dict[int, str] = {}
         self._install_routes()
 
     # ---------------------------------------------------------------- state
@@ -91,15 +112,67 @@ class FakeCloud(FileStore):
         self.materialise(path, size, modified)
         self.created[path] = created or modified
 
+    def add_fictional(
+        self, written: str, size: int, modified: datetime
+    ) -> int:
+        """Seed a file uploaded under a path outside the project."""
+        assert is_fictional(written), written
+        file_id = self._new_id()
+        self.fictional[file_id] = written
+        self.materialise(self._stored(file_id), size, modified)
+        return file_id
+
+    def paths(self) -> set[Path]:
+        """Ordinary files only, so convergence checks ignore fictional."""
+        return {
+            p for p in super().paths() if not p.is_relative_to(FICTIONAL)
+        }
+
+    def id_of(self, path: Path) -> int:
+        if path not in self._ids:
+            self._ids[path] = self._new_id()
+        return self._ids[path]
+
+    def _new_id(self) -> int:
+        file_id, self._next_id = self._next_id, self._next_id + 1
+        return file_id
+
+    @staticmethod
+    def _stored(file_id: int) -> Path:
+        return FICTIONAL / str(file_id)
+
+    def _by_id(self, file_id: int) -> tuple[Path, str] | None:
+        """(stored path, path as listed) of an existing file"""
+        if file_id in self.fictional:
+            return self._stored(file_id), self.fictional[file_id]
+        for path, known in self._ids.items():
+            if known == file_id and self.exists(path):
+                return path, path.as_posix()
+        return None
+
     def as_project_file(self, path: Path) -> ProjectFile:
+        return self._project_file(self.id_of(path), path, path.as_posix())
+
+    def _project_file(
+        self, file_id: int, stored: Path, listed: str
+    ) -> ProjectFile:
         return ProjectFile(
+            id=file_id,
             project_id=self.project_id,
-            path=path.as_posix(),
-            created=self.created.get(path, self.modified(path)),
-            modified=self.modified(path),
-            size=self.stat(path).st_size,
-            hash=sha256(self.read(path)).hexdigest(),
+            path=listed,
+            fictional=file_id in self.fictional,
+            created=self.created.get(stored, self.modified(stored)),
+            modified=self.modified(stored),
+            size=self.stat(stored).st_size,
+            hash=sha256(self.read(stored)).hexdigest(),
         )
+
+    def all_project_files(self) -> list[ProjectFile]:
+        ordinary = [self.as_project_file(p) for p in sorted(self.paths())]
+        return ordinary + [
+            self._project_file(i, self._stored(i), written)
+            for i, written in sorted(self.fictional.items())
+        ]
 
     def file_calls(self) -> list[Call]:
         """Recorded file operations, sorted by (method, path).
@@ -134,6 +207,7 @@ class FakeCloud(FileStore):
         # Registration order matters: respx matches first-wins, and a bare
         # get(base) would otherwise swallow the three below it.
         r.get(f'{base}/files').mock(side_effect=self._handle_files)
+        r.post(f'{base}/files').mock(side_effect=self._handle_create)
         r.get(f'{base}/requirements').mock(
             side_effect=self._handle_requirements
         )
@@ -167,7 +241,7 @@ class FakeCloud(FileStore):
         name = request.url.params.get('project_name', None)
         assert name is not None, request.url
         now = datetime.now(timezone.utc)
-        project_id, self._next_id = self._next_id, self._next_id + 1
+        project_id = self._new_id()
         return Response(200, json=Project(
             name=name, id=project_id, created=now, modified=now,
         ).model_dump(mode='json'))
@@ -178,22 +252,33 @@ class FakeCloud(FileStore):
             **self._project_fields(),
             path_to_markdown=self.md,
             path_to_docx=self.docx,
-            files=[self.as_project_file(p) for p in sorted(self.paths())],
+            files=self.all_project_files(),
         ).model_dump(mode='json'))
 
     async def _handle_files(self, request: Request) -> Response:
         self._record('files')
         return Response(200, json=[
-            self.as_project_file(p).model_dump(mode='json')
-            for p in sorted(self.paths())
+            i.model_dump(mode='json') for i in self.all_project_files()
         ])
 
     async def _handle_requirements(self, request: Request) -> Response:
         self._record('requirements')
-        return Response(200, json={
-            path.as_posix(): {'path': path.as_posix()}
-            for path in self.requirements
-        })
+        return Response(200, json=[
+            {'path': written, 'file_id': self._requirement_id(written)}
+            for written in (
+                r.as_posix() if isinstance(r, Path) else r
+                for r in self.requirements
+            )
+        ])
+
+    def _requirement_id(self, written: str) -> int | None:
+        if is_fictional(written):
+            for file_id, known in self.fictional.items():
+                if known == written:
+                    return file_id
+            return None
+        path = Path(written)
+        return self.id_of(path) if self.exists(path) else None
 
     async def _handle_render(self, request: Request) -> Response:
         self._record('render')
@@ -206,47 +291,67 @@ class FakeCloud(FileStore):
             max_log_level=0, finished=True, logs=[],
         ).model_dump(mode='json'))
 
+    async def _handle_create(self, request: Request) -> Response:
+        written = request.url.params.get('path', None)
+        assert written is not None, request.url
+        self.calls.append(Call.of(request, Path(written)))
+        if is_fictional(written):
+            assert written not in self.fictional.values(), (
+                f'POST on existing file {written}'
+            )
+            file_id = self._new_id()
+            self.fictional[file_id] = written
+            stored = self._stored(file_id)
+        else:
+            stored = Path(written)
+            assert not self.exists(stored), (
+                f'POST on existing file {written}'
+            )
+            self._ids.pop(stored, None)
+            file_id = self.id_of(stored)
+        modified = self._modify_time(request)
+        self.write(stored, request.read(), modified)
+        self.created[stored] = modified
+        return Response(201, json=self._project_file(
+            file_id, stored, written
+        ).model_dump(mode='json'))
+
     async def _handle_file(
-        self, request: Request, pid: str, path: str
+        self, request: Request, pid: str, fid: str
     ) -> Response:
         """respx hands the regex's named groups over as keyword
-        arguments, so `pid` and `path` arrive already extracted."""
+        arguments, so `pid` and `fid` arrive already extracted."""
         assert int(pid) == self.project_id, request.url
-        file = Path(path)
-        self.calls.append(Call.of(request, file))
-        exists = self.exists(file)
-        match request.method, exists:
-            case 'POST', False:
-                return self._create(request, file)
-            case 'PUT', True:
-                return self._overwrite(request, file)
-            case 'GET', True:
-                return Response(200, content=self.read(file))
-            case 'PATCH', True:
-                return self._move_on_cloud(request, file)
-            case 'DELETE', True:
-                self.remove(file)
-                self.created.pop(file, None)
-                return self._ok()
-            case method, existed:
-                raise AssertionError(
-                    f'{method} on '
-                    f"{'existing' if existed else 'missing'} file "
-                    f'{file.as_posix()}'
+        file_id = int(fid)
+        found = self._by_id(file_id)
+        if found is None:
+            raise AssertionError(
+                f'{request.method} on missing file {file_id}'
+            )
+        stored, listed = found
+        self.calls.append(Call.of(request, Path(listed)))
+        match request.method:
+            case 'PUT':
+                return self._overwrite(request, stored)
+            case 'GET':
+                return Response(200, content=self.read(stored))
+            case 'PATCH':
+                assert file_id not in self.fictional, (
+                    f'PATCH on fictional file {listed}'
                 )
+                return self._move_on_cloud(request, stored)
+            case 'DELETE':
+                self.remove(stored)
+                self.created.pop(stored, None)
+                self.fictional.pop(file_id, None)
+                return self._ok()
+            case method:
+                raise AssertionError(f'{method} on file {listed}')
 
     def _modify_time(self, request: Request) -> datetime:
         raw = request.url.params.get('modify_time', None)
         assert raw is not None, request.url
         return datetime.fromisoformat(raw)
-
-    def _create(self, request: Request, path: Path) -> Response:
-        modified = self._modify_time(request)
-        self.write(path, request.read(), modified)
-        self.created[path] = modified
-        return Response(
-            201, json=self.as_project_file(path).model_dump(mode='json')
-        )
 
     def _overwrite(self, request: Request, path: Path) -> Response:
         self.write(path, request.read(), self._modify_time(request))
@@ -257,6 +362,7 @@ class FakeCloud(FileStore):
         assert raw_target is not None, request.url
         target = Path(raw_target)
         self.move(path, target)
+        self._ids[target] = self._ids.pop(path)
         self.created[target] = self.created.pop(path, self.modified(target))
         return self._ok()
 

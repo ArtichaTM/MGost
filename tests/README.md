@@ -10,10 +10,19 @@ depend on execution order.
   differ only in that `FakeCloud` also answers HTTP through respx.
 - `conftest.py` — `clock`, `cloud`, `workspace`, `sync_project`.
 - `commands/test_sync.py` — the scenario table below.
+- `commands/test_sync_external.py` — rows 14–20, files outside the project.
 
 Assertions read `cloud.file_calls()`, a sorted list of `Call` records the
 file handler appends to itself. There is no route registry to keep in step
 with the tests, which is what the previous harness got wrong.
+
+The server addresses files by id. `FakeCloud` assigns an ordinary file its
+id on first sight (`cloud.id_of(path)`) and keeps it across a `PATCH`, yet
+`Call` still records the path, so the tables below read by path. A
+fictional file is seeded with `cloud.add_fictional(written, …)`, stored
+under `.fictional/<id>`, hidden from `cloud.paths()`, and recorded as
+`Path(written)`. In `cloud.requirements` a `Path` is an ordinary
+requirement and a `str` is sent exactly as written.
 
 Paths are `pathlib.Path` everywhere, including inside `Call`. `Path`
 equality and ordering are identical on every platform; `str(Path('a/b'))`
@@ -50,6 +59,27 @@ missing-everywhere branches instead, and are unrelated to file identity:
 | 7 | 21 B, `t` | 20 B, `t−1s` | `GET` |
 | 8 | 20 B, `t−1 day` | 21 B, `t` | `PUT` |
 | 10 | requirement `ghost.png` nowhere | — | no file calls |
+
+Rows 14–20 cover requirements outside the project: absolute, or climbing
+out with `..`. The server stores them as fictional files keyed by the
+written path. Sync only uploads them and never writes outside the project;
+to edit such a file through the cloud, copy it into the project. Nothing is
+searched for: one stat at the written path decides presence, and an
+absolute path for the other OS counts as missing locally.
+
+| # | external file | expect |
+|---|---|---|
+| 14 | local only | `POST ?path=<written>` |
+| 15 | both, bytes differ, local newer | `PUT` |
+| 16 | both, bytes differ, cloud newer | `PUT`, warns the cloud copy was newer |
+| 17 | both, bytes equal | no file calls |
+| 18 | cloud only: deleted locally, or other-OS path | no file calls, notes the cloud copy is used |
+| 19 | absolute path inside the project | `POST` as fictional, warns to write it relative, not a move candidate |
+| 20 | nowhere | no file calls |
+
+Row 19 keeps the absolute path fictional because the server keys the file
+by the written string; uploading it as ordinary would leave the
+requirement without a `file_id` until the markdown is rewritten.
 
 Rows 7 and 8 guard a bug fixed in `7fa24a0`: `timedelta.seconds` is never
 negative, so a −1s delta reported `86399` and the cloud-newer branch was
