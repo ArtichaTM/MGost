@@ -1,13 +1,16 @@
-ci:
-  autoupdate_schedule: monthly
 repos:
-  - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.15.7
+  - repo: local
     hooks:
       - id: ruff-check
+        name: ruff check
+        entry: uv run --locked ruff check --force-exclude
+        language: system
+        types_or: [python, pyi]
+        require_serial: true
 
-  - repo: https://github.com/pycqa/isort
-    rev: 5.13.2
-    hooks:
       - id: isort
+        name: isort
+        entry: uv run --locked isort
+        language: system
         types: [python]
+        require_serial: true

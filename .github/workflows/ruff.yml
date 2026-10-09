@@ -15,6 +15,6 @@ jobs:
     - name: Install pinned Python
       run: uv python install
     - name: Sync project
-      run: uv sync --dev
+      run: uv sync --locked --dev
     - name: Testing code with ruff
-      run: uv run -m ruff check
+      run: uv run --locked -m ruff check

@@ -15,11 +15,11 @@ jobs:
       with:
         enable-cache: true
     - name: Installing project with coverage
-      run: uv sync --dev
+      run: uv sync --locked --dev
     - name: Testing code with coverage
-      run: uv run -m coverage run -m pytest
+      run: uv run --locked -m coverage run -m pytest
     - name: Collecting coverage
-      run: uv run -m coverage json
+      run: uv run --locked -m coverage json
     - uses: actions/upload-artifact@v4
       with:
         name: coverage

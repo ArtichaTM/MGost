@@ -19,7 +19,7 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@v7
       - name: Sync project
-        run: uv sync --dev
+        run: uv sync --locked --dev
       - name: Build
         run: uv build
       - name: Publish

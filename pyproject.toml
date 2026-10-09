@@ -58,7 +58,8 @@ dev = [
     "pytest-asyncio>=1.2.0",
     "pytest-xdist>=3.8.0",
     "respx>=0.22.0",
-    "ruff>=0.15.7",
+    "ruff>=0.16.10",
+    "isort>=9.0.2",
 ]
 
 [tool.isort]

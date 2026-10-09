@@ -20,6 +20,6 @@ jobs:
         python-version: ${{ matrix.python-version }}
         enable-cache: true
     - name: Sync project
-      run: uv sync --dev
+      run: uv sync --locked --dev
     - name: Testing code with django test framework
-      run: uv run -m pytest -n 2
+      run: uv run --locked -m pytest -n 2
