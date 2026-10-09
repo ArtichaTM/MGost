@@ -5,6 +5,7 @@ __all__ = ('app', )
 
 app = typer.Typer(
     name="MGost",
+    epilog="AI agents: https://articha.ru/static/mgost_conv/llms.md",
 )
 
 def main():

@@ -1,6 +1,8 @@
 # MGost
 Библиотека позволяет пользоваться преимуществами MGost конвертера локально
 
+> **Для ИИ-агентов / For AI agents:** справочник по синтаксису Markdown, макросам и CLI MGost — https://articha.ru/static/mgost_conv/llms.md
+
 ## Установка
 
 Для начала необходимо получить API токен на [официальном сайте конвертера](https://articha.ru/auth/tokens/)
