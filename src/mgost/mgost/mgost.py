@@ -1,5 +1,6 @@
 from logging import ERROR, WARNING, getLogger
 from pathlib import Path
+from typing import Self
 
 from httpx import HTTPStatusError, TimeoutException
 from rich.progress import Progress
@@ -17,10 +18,10 @@ logger = getLogger(__name__)
 
 class MGost:
     __slots__ = (
-        '_root_path',
-        '_info',
         '_api',
-        '_last_line_length'
+        '_info',
+        '_last_line_length',
+        '_root_path'
     )
     _root_path: Path
     _info: MGostInfo | None
@@ -34,7 +35,7 @@ class MGost:
         self._info = None
         self._api = None
 
-    async def __aenter__[T: MGost](self: T) -> T:
+    async def __aenter__(self) -> Self:
         assert self._info is None
         self._info = MGostInfo.load(self.project_root / '.mgost')
         self._api = ArtichaAPI(self._info.api_key.api_key)
@@ -43,7 +44,7 @@ class MGost:
 
     async def __aexit__(
         self,
-        exc_type: type[Exception] | None,
+        exc_type: type[BaseException] | None,
         *_
     ):
         assert self._info is not None
@@ -240,7 +241,7 @@ class MGost:
                 .nl()
         choices = (0, *mapping.keys())
         assert isinstance(choices, tuple)
-        assert all((isinstance(i, int) for i in choices))
+        assert all(isinstance(i, int) for i in choices)
         value = Console.prompt(
             'Действие',
             choices=choices,  # type: ignore

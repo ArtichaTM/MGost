@@ -6,11 +6,11 @@ from click.types import Choice
 __all__ = ('Console',)
 
 
-class _Console():
+class _Console:
     __slots__ = (
-        '_r',
-        '_new_line',
         '_force_new_line',
+        '_new_line',
+        '_r',
         'verbosity'
     )
     _r: bool
@@ -55,8 +55,8 @@ class _Console():
     def is_prompts(self) -> bool:
         return self.verbosity in (0, -1)
 
-    def echo[T: _Console](
-        self: T,
+    def echo(
+        self,
         text: str,
         fg: int | tuple[int, int, int] | str | None = None,
         bg: int | tuple[int, int, int] | str | None = None,
@@ -69,7 +69,7 @@ class _Console():
         reverse: bool | None = None,
         strikethrough: bool | None = None,
         reset: bool = True,
-    ) -> T:
+    ) -> t.Self:
         assert isinstance(text, str)
         assert '\n' not in text
         with self._VariablesApply():
@@ -90,19 +90,19 @@ class _Console():
                 ), nl=False)
         return self
 
-    def edit[T: _Console](self: T) -> T:
+    def edit(self) -> t.Self:
         if self._force_new_line:
             return self
         self._r = True
         self._new_line = False
         return self
 
-    def nl[T: _Console](self: T) -> T:
+    def nl(self) -> t.Self:
         self._r = False
         self._new_line = True
         return self
 
-    def force_nl[T: _Console](self: T) -> T:
+    def force_nl(self) -> t.Self:
         self._r = False
         self._new_line = False
         self._force_new_line = True

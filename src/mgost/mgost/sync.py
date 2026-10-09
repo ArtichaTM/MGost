@@ -1,6 +1,6 @@
 from asyncio import Task, create_task, gather
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from logging import getLogger
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -54,7 +54,7 @@ def _local_is_newer(
 ) -> bool:
     local_mt = datetime.fromtimestamp(
         (mgost.project_root / local_path).lstat().st_mtime,
-        tz=timezone.utc
+        tz=UTC
     )
     return (local_mt - cloud_modified).total_seconds() > 0
 
@@ -152,16 +152,17 @@ def _both_present_action(
     cloud_file: 'ProjectFile',
     full_path: Path,
 ) -> MGostCompletableAction:
-    if full_path.lstat().st_size == cloud_file.size:
-        # Sizes match, so a digest is cheap and settles it outright.
-        # Hashing is skipped entirely when the sizes already differ.
-        if file_digest(full_path) == cloud_file.hash:
-            logger.info(f'File "{path}" identical on both sides')
-            return DoNothing()
+    # Hashing is skipped entirely when the sizes already differ.
+    if (
+        full_path.lstat().st_size == cloud_file.size
+        and file_digest(full_path) == cloud_file.hash
+    ):
+        logger.info(f'File "{path}" identical on both sides')
+        return DoNothing()
     cloud_mt = cloud_file.modified
     local_mt = datetime.fromtimestamp(
         full_path.lstat().st_mtime,
-        tz=timezone.utc
+        tz=UTC
     )
     assert cloud_mt.tzinfo is not None
     assert local_mt.tzinfo is not None
@@ -264,7 +265,7 @@ def _external_actions(
     ):
         logger.info(f'External file "{written}" identical on both sides')
         return actions
-    local_mt = datetime.fromtimestamp(local.lstat().st_mtime, tz=timezone.utc)
+    local_mt = datetime.fromtimestamp(local.lstat().st_mtime, tz=UTC)
     if (cloud_file.modified - local_mt).total_seconds() >= 1:
         actions.append(_message_action(
             written,
@@ -306,7 +307,7 @@ async def plan_sync(mgost: 'MGost') -> SyncPlan:
 
     wanted = [project.path_to_markdown, project.path_to_docx]
     # Keyed by file id when uploaded: two spellings may name one file
-    externals: dict[int | str, tuple[External, 'ProjectFile | None']] = {}
+    externals: dict[int | str, tuple[External, ProjectFile | None]] = {}
     for requirement in requirements:
         kind = classify(root, requirement.path)
         if isinstance(kind, Path):

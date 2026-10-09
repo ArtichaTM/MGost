@@ -2,6 +2,7 @@ import enum
 import json
 from os import environ, getenv
 from pathlib import Path
+from typing import Self
 
 from dotenv import dotenv_values
 
@@ -39,9 +40,9 @@ class Settings:
         self.project_name = project_name
 
     @classmethod
-    def from_dict[T: Settings](
-        cls: type[T], dictionary: dict
-    ) -> T:
+    def from_dict(
+        cls, dictionary: dict
+    ) -> Self:
         # Settings files written before the markdown and docx pointers
         # moved server-side still carry md_path and docx_path.
         known = {
@@ -50,7 +51,7 @@ class Settings:
         return cls(**known)
 
     def to_dict(self) -> dict:
-        output = dict()
+        output = {}
         if self.project_id is not None:
             output['project_id'] = self.project_id
             output['project_name'] = self.project_name
@@ -60,8 +61,8 @@ class Settings:
 class ApiKeyHolder:
     API_TOKEN_KEY = 'ARTICHAAPI_TOKEN'
     __slots__ = (
-        'path_dotenv',
         'api_key',
+        'path_dotenv',
         'source'
     )
     path_dotenv: Path
@@ -146,8 +147,8 @@ class ApiKeyHolder:
 
 class MGostInfo:
     __slots__ = (
-        'settings',
-        'api_key'
+        'api_key',
+        'settings'
     )
     settings: Settings
     api_key: ApiKeyHolder
@@ -159,7 +160,7 @@ class MGostInfo:
         path_dotenv: Path | None = None
     ) -> None:
         if settings is None:
-            settings = dict()
+            settings = {}
         self.settings = Settings.from_dict(settings)
         assert isinstance(path_dotenv, Path)
         self.api_key = ApiKeyHolder(path_dotenv)
@@ -167,7 +168,7 @@ class MGostInfo:
     @staticmethod
     def _load_json(path: Path) -> dict:
         if not path.exists():
-            return dict()
+            return {}
         with path.open('r', encoding='utf-8') as f:
             return json.load(f)
 
@@ -182,7 +183,7 @@ class MGostInfo:
             json.dump(obj, f, indent=indent, ensure_ascii=False)
 
     @classmethod
-    def load[T: MGostInfo](cls: type[T], path: Path) -> T:
+    def load(cls, path: Path) -> Self:
         """Loads settings from a `.mgost` folder"""
         path_dotenv = path / '.env'
         if not path.exists():

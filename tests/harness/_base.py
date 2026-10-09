@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from hashlib import sha256
 from os import name as os_name
 from os import stat_result, utime
@@ -76,7 +76,7 @@ class FileStore:
 
     def modified(self, path: Path) -> datetime:
         return datetime.fromtimestamp(
-            self.stat(path).st_mtime, tz=timezone.utc
+            self.stat(path).st_mtime, tz=UTC
         )
 
     def exists(self, path: Path) -> bool:

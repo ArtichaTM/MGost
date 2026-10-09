@@ -1,8 +1,8 @@
 from asyncio import sleep
+from collections.abc import Awaitable
 from functools import partial
 from json import JSONDecodeError
 from pathlib import Path
-from typing import Awaitable
 
 from aiopath import AsyncPath
 from httpx import AsyncClient, QueryParams, Response

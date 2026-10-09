@@ -1,9 +1,10 @@
+from collections.abc import Collection
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from hashlib import file_digest as _hashlib_file_digest
 from logging import getLogger
 from pathlib import Path
-from typing import TYPE_CHECKING, Collection
+from typing import TYPE_CHECKING
 
 __all__ = (
     'Candidate', 'Match', 'Matcher', 'collect_candidates', 'file_digest'
@@ -60,7 +61,7 @@ def collect_candidates(
                 path=relative,
                 size=stat.st_size,
                 modified=datetime.fromtimestamp(
-                    stat.st_mtime, tz=timezone.utc
+                    stat.st_mtime, tz=UTC
                 ),
             )
     return found
@@ -82,7 +83,7 @@ class Matcher:
     per file, so two cloud files can never claim the same local file.
     """
 
-    __slots__ = ('_root', '_candidates', '_claimed', '_digests')
+    __slots__ = ('_candidates', '_claimed', '_digests', '_root')
 
     def __init__(
         self, root: Path, candidates: dict[Path, 'Candidate']

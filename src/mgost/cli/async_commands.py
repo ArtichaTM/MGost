@@ -8,7 +8,7 @@ from mgost.mgost import MGost
 from mgost.mgost.sync import SyncError
 from mgost.mgost.utils import project_valid, token_valid
 
-__all__ = ('version', 'token', 'init', 'sync', 'render')
+__all__ = ('init', 'render', 'sync', 'token', 'version')
 
 
 async def version():

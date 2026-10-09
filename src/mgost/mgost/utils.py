@@ -5,7 +5,7 @@ from mgost.console import Console
 if TYPE_CHECKING:
     from .mgost import MGost
 
-__all__ = ('token_valid', 'project_valid')
+__all__ = ('project_valid', 'token_valid')
 
 
 async def token_valid(mgost: 'MGost') -> bool:

@@ -11,8 +11,8 @@ class ClientClosed(Exception):
 
 class APIRequestError(Exception):
     __slots__ = (
-        'response',
         'detail',
+        'response',
     )
     response: Response
     detail_: str

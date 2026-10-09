@@ -68,6 +68,9 @@ multi_line_output = 5
 [tool.ruff]
 include = ["pyproject.toml", "src/mgost/*.py", "tests/**/*.py"]
 
+[tool.ruff.lint]
+ignore = ["I"]  # isort owns import ordering and style
+
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401"]
 

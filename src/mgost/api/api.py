@@ -1,7 +1,8 @@
-from datetime import datetime, timezone
+from collections.abc import Awaitable
+from datetime import UTC, datetime
 from os import replace, utime
 from pathlib import Path
-from typing import Awaitable, Literal
+from typing import Literal, Self
 
 from aiopath import AsyncPath
 from httpx import AsyncClient, ConnectError, HTTPStatusError, Response
@@ -15,10 +16,10 @@ from .request import APIRequestInfo
 
 class ArtichaAPI:
     __slots__ = (
-        '_token',
-        '_client',
-        '_cache',
         '_base_url',
+        '_cache',
+        '_client',
+        '_token',
     )
     _host: str = 'https://articha.ru/api'
     RENDER_TIMEOUT: float = 300.
@@ -40,10 +41,10 @@ class ArtichaAPI:
         assert base_url is not None
         self._base_url = base_url
         self._token = api_token
-        self._cache = dict()
+        self._cache = {}
         self._client = None
 
-    async def __aenter__[T: ArtichaAPI](self: T) -> T:
+    async def __aenter__(self) -> Self:
         assert self._base_url is not None
         assert self._client is None
         await self._client_refresh()
@@ -231,7 +232,7 @@ class ArtichaAPI:
             raise FileNotFoundError
         params: dict = {
             'modify_time': datetime.fromtimestamp(
-                local_path.lstat().st_mtime, timezone.utc
+                local_path.lstat().st_mtime, UTC
             ).isoformat()
         }
         files_url = f'/mgost/project/{project_id}/files'

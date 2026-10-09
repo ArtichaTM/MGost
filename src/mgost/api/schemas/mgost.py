@@ -1,7 +1,6 @@
 from datetime import datetime
 from logging import ERROR, INFO
 from pathlib import Path
-from typing import Optional
 
 from pydantic import BaseModel, Field
 
@@ -51,7 +50,7 @@ class ProjectFileUploadInfo(BaseModel):
 
 
 class ProjectBuildHistoryEntry(BaseModel):
-    project: Optional[int]
+    project: int | None
     date: datetime
     maximum_status_code: int
 

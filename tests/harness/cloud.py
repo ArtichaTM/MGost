@@ -1,6 +1,6 @@
 import re
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from hashlib import sha256
 from os.path import normpath
 from pathlib import Path, PurePosixPath, PureWindowsPath
@@ -64,9 +64,18 @@ class FakeCloud(FileStore):
     """The server, modelled as a directory that also answers HTTP."""
 
     __slots__ = (
-        'router', 'project_id', 'name', 'md', 'docx',
-        'created', 'requirements', 'calls', 'endpoints', '_next_id',
-        '_ids', 'fictional',
+        '_ids',
+        '_next_id',
+        'calls',
+        'created',
+        'docx',
+        'endpoints',
+        'fictional',
+        'md',
+        'name',
+        'project_id',
+        'requirements',
+        'router',
     )
 
     EXAMPLE_SIZE = 200
@@ -219,7 +228,7 @@ class FakeCloud(FileStore):
 
     async def _handle_me(self, request: Request) -> Response:
         self._record('me')
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         return Response(200, json=TokenInfo(
             name='Test', owner='TestOwner', created=now, modified=now,
         ).model_dump(mode='json'))
@@ -240,7 +249,7 @@ class FakeCloud(FileStore):
         self._record('project_create')
         name = request.url.params.get('project_name', None)
         assert name is not None, request.url
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         project_id = self._new_id()
         return Response(200, json=Project(
             name=name, id=project_id, created=now, modified=now,
@@ -282,7 +291,7 @@ class FakeCloud(FileStore):
 
     async def _handle_render(self, request: Request) -> Response:
         self._record('render')
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         if self.exists(self.docx):
             self.write(self.docx, self.read(self.docx), now)
         else:
@@ -369,7 +378,7 @@ class FakeCloud(FileStore):
     # -------------------------------------------------------------- helpers
 
     def _project_fields(self) -> dict:
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         return {
             'name': self.name,
             'id': self.project_id,

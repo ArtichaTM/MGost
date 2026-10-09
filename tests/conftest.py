@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import pytest
 import respx
@@ -34,7 +34,7 @@ class Clock:
 
 @pytest.fixture
 def clock() -> Clock:
-    return Clock(datetime.now(timezone.utc).replace(microsecond=0))
+    return Clock(datetime.now(UTC).replace(microsecond=0))
 
 
 @pytest.fixture(autouse=True)

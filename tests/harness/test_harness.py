@@ -1,4 +1,4 @@
-from datetime import timezone
+from datetime import UTC
 from hashlib import sha256
 from pathlib import Path
 
@@ -52,7 +52,7 @@ def test_mtime_survives_roundtrip_exactly(store, clock):
         Path('a.md'), size=1, modified=clock.ago(days=1, seconds=1)
     )
     assert store.modified(Path('a.md')) == clock.ago(days=1, seconds=1)
-    assert store.modified(Path('a.md')).tzinfo is timezone.utc
+    assert store.modified(Path('a.md')).tzinfo is UTC
 
 
 @pytest.fixture

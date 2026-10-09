@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import httpx
 import pytest
@@ -21,8 +21,8 @@ async def api():
 async def test_me_returns_token_info(respx_mock: respx.MockRouter, api):
     expected = TokenInfo(
         name='Test', owner='TestOwner',
-        created=datetime.now(timezone.utc),
-        modified=datetime.now(timezone.utc),
+        created=datetime.now(UTC),
+        modified=datetime.now(UTC),
     )
     route = respx_mock.get(
         f'{BASE_URL}/me', headers={'X-API-Key': TOKEN},

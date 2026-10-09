@@ -11,7 +11,7 @@ class BytesOrIntColumn(ProgressColumn):
     """
 
     @staticmethod
-    def _hs(n: int | float) -> str:
+    def _hs(n: float) -> str:
         """human_size"""
         assert isinstance(n, (int, float))
         n = float(n)
