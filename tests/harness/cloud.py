@@ -2,8 +2,8 @@ import re
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from hashlib import sha256
-from os.path import normpath
 from pathlib import Path, PurePosixPath, PureWindowsPath
+from posixpath import normpath
 from urllib.parse import urlsplit
 
 import respx
