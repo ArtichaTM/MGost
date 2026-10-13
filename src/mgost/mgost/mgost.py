@@ -1,4 +1,4 @@
-from logging import ERROR, WARNING, getLogger
+from logging import getLogger
 from pathlib import Path
 from typing import Self
 
@@ -11,7 +11,7 @@ from mgost.console import Console
 from mgost.settings import MGostInfo
 
 from .sync import sync
-from .utils import project_valid
+from .utils import print_build_result, project_valid
 
 logger = getLogger(__name__)
 
@@ -99,34 +99,7 @@ class MGost:
             return
         assert isinstance(result, BuildResult)
         logger.info(f"Result of render: {result}")
-        Console.echo('Рендер ')
-        ended = 'завершён' if result.finished else 'не завершён'
-        if result.max_log_level < WARNING:
-            Console\
-                .echo('успешно', fg='green')\
-                .echo(f' {ended}')
-        elif result.max_log_level < ERROR:
-            Console\
-                .echo(f'{ended} ')\
-                .echo('с предупреждениями', fg='yellow')
-        else:
-            Console\
-                .echo(f'{ended} ')\
-                .echo('с ошибками', fg='red')
-        if not result.logs:
-            Console.echo(' без сообщений')
-        Console.nl()
-        for entry in result.logs:
-            if entry.level < WARNING:
-                Console.echo('ИНФО'.rjust(14), fg='white')
-            elif entry.level < ERROR:
-                Console.echo('ПРЕДУПРЕЖДЕНИЕ'.rjust(14), fg='yellow')
-            else:
-                Console.echo('ОШИБКА'.rjust(14), fg='red')
-            Console\
-                .echo(': ')\
-                .echo(entry.message)\
-                .nl()
+        print_build_result(result)
         if result.finished:
             project = await self.api.project(
                 self.info.settings.project_id

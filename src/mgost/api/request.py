@@ -15,6 +15,8 @@ class APIRequestInfo:
     label: str | None = None
     request_file_path: AsyncPath | None = None
     response_file_path: AsyncPath | None = None
+    # Raw request body, sent as `application/octet-stream`
+    content: bytes | None = None
     # Seconds; `None` keeps the client default
     timeout: float | None = None
 

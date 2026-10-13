@@ -5,10 +5,11 @@ from pathlib import Path
 from mgost.api.remote_version import get_remote_version
 from mgost.console import Console
 from mgost.mgost import MGost
+from mgost.mgost.fast_convert import fast_convert
 from mgost.mgost.sync import SyncError
 from mgost.mgost.utils import project_valid, token_valid
 
-__all__ = ('init', 'render', 'sync', 'token', 'version')
+__all__ = ('convert', 'init', 'render', 'sync', 'token', 'version')
 
 
 async def version():
@@ -61,7 +62,7 @@ async def token(
 ):
     mgost = MGost(root_path)
     async with mgost:
-        is_token_valid = await token_valid(mgost)
+        is_token_valid = await token_valid(mgost.api, mgost.info.api_key)
         if is_token_valid is False:
             return
         token_info = await mgost.api.me()
@@ -88,7 +89,7 @@ async def init(
 ):
     mgost = MGost(root_path)
     async with mgost:
-        is_token_valid = await token_valid(mgost)
+        is_token_valid = await token_valid(mgost.api, mgost.info.api_key)
         if is_token_valid is False:
             return
         await mgost.init()
@@ -100,7 +101,7 @@ async def sync(
 ):
     mgost = MGost(root_path)
     async with mgost:
-        is_token_valid = await token_valid(mgost)
+        is_token_valid = await token_valid(mgost.api, mgost.info.api_key)
         if is_token_valid is False:
             return
         is_project_valid = await project_valid(mgost)
@@ -118,7 +119,7 @@ async def render(
 ):
     mgost = MGost(root_path)
     async with mgost:
-        is_token_valid = await token_valid(mgost)
+        is_token_valid = await token_valid(mgost.api, mgost.info.api_key)
         if is_token_valid is False:
             return
         is_project_valid = await project_valid(mgost)
@@ -130,3 +131,7 @@ async def render(
             Console.nl().finalize()
             return
         await mgost.render()
+
+
+async def convert(source: Path | None, output: Path | None) -> bool:
+    return await fast_convert(source, output)

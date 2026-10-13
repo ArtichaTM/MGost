@@ -1,17 +1,20 @@
+from logging import ERROR, WARNING
 from typing import TYPE_CHECKING
 
+from mgost.api import ArtichaAPI
+from mgost.api.schemas.mgost import BuildResult
 from mgost.console import Console
+from mgost.settings import ApiKeyHolder
 
 if TYPE_CHECKING:
     from .mgost import MGost
 
-__all__ = ('project_valid', 'token_valid')
+__all__ = ('print_build_result', 'project_valid', 'token_valid')
 
 
-async def token_valid(mgost: 'MGost') -> bool:
-    assert mgost.api is not None
+async def token_valid(api: ArtichaAPI, api_key_cl: ApiKeyHolder) -> bool:
     Console.echo('Валидация токена ...').edit()
-    token_info = await mgost.api.validate_token()
+    token_info = await api.validate_token()
     while isinstance(token_info, str):
         if not Console.is_prompts:
             return False
@@ -19,7 +22,6 @@ async def token_valid(mgost: 'MGost') -> bool:
             .echo('Токен некорректен: ', fg="red")\
             .echo(token_info, fg="bright_red")\
             .nl()
-        api_key_cl = mgost.info.api_key
         key = api_key_cl.api_key
         api_key_cl.remove_current_key()
         try:
@@ -31,7 +33,8 @@ async def token_valid(mgost: 'MGost') -> bool:
                 .nl()
             api_key_cl.api_key = key
             raise
-        token_info = await mgost.api.validate_token()
+        api.set_token(api_key_cl.api_key)
+        token_info = await api.validate_token()
     return True
 
 
@@ -64,3 +67,34 @@ async def project_valid(mgost: 'MGost') -> bool:
         .force_nl()
     mgost.info.settings.project_name = project.name
     return True
+
+
+def print_build_result(result: BuildResult) -> None:
+    Console.echo('Рендер ')
+    ended = 'завершён' if result.finished else 'не завершён'
+    if result.max_log_level < WARNING:
+        Console\
+            .echo('успешно', fg='green')\
+            .echo(f' {ended}')
+    elif result.max_log_level < ERROR:
+        Console\
+            .echo(f'{ended} ')\
+            .echo('с предупреждениями', fg='yellow')
+    else:
+        Console\
+            .echo(f'{ended} ')\
+            .echo('с ошибками', fg='red')
+    if not result.logs:
+        Console.echo(' без сообщений')
+    Console.nl()
+    for entry in result.logs:
+        if entry.level < WARNING:
+            Console.echo('ИНФО'.rjust(14), fg='white')
+        elif entry.level < ERROR:
+            Console.echo('ПРЕДУПРЕЖДЕНИЕ'.rjust(14), fg='yellow')
+        else:
+            Console.echo('ОШИБКА'.rjust(14), fg='red')
+        Console\
+            .echo(': ')\
+            .echo(entry.message)\
+            .nl()

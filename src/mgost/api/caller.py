@@ -68,6 +68,9 @@ async def _method_normal(
         kwargs['content'] = _file_chunker(
             request.request_file_path
         )
+    if request.content is not None:
+        kwargs['content'] = request.content
+        kwargs['headers'] = {"Content-Type": "application/octet-stream"}
     func = partial(
         client.request,
         **kwargs

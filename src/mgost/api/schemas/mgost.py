@@ -113,3 +113,15 @@ class BuildResult(BaseModel):
     )
     logs: list[LogEntry]
     finished: bool
+
+
+class FastConversionResult(BuildResult):
+    running: bool = Field(
+        default=False,
+        description="The render outlasted the request's wait and goes on"
+    )
+    output_url: str | None = Field(
+        default=None,
+        description="Where to download the `.docx`; absent unless "
+        "`finished` or `running`"
+    )

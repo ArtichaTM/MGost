@@ -9,6 +9,8 @@ from dotenv import dotenv_values
 from mgost.console import Console
 
 __all__ = (
+    'API_KEY_SOURCE',
+    'ApiKeyHolder',
     'MGostInfo',
     'Settings',
 )
@@ -74,20 +76,25 @@ class ApiKeyHolder:
         self.path_dotenv = path_dotenv
         self.load_api_key()
 
-    def load_api_key(self) -> None:
-        env_token = getenv(self.API_TOKEN_KEY)
+    @classmethod
+    def stored(
+        cls, path_dotenv: Path
+    ) -> tuple[str, API_KEY_SOURCE] | None:
+        """Token from the environment or `.env`, without prompting"""
+        env_token = getenv(cls.API_TOKEN_KEY)
         if env_token is not None:
-            self.source = API_KEY_SOURCE.ENV
-            self.api_key = env_token
-            return
-
-        if self.path_dotenv.exists():
-            dotenv = dotenv_values(self.path_dotenv)
-            dotenv_token = dotenv.get(self.API_TOKEN_KEY)
+            return env_token, API_KEY_SOURCE.ENV
+        if path_dotenv.exists():
+            dotenv_token = dotenv_values(path_dotenv).get(cls.API_TOKEN_KEY)
             if dotenv_token is not None:
-                self.source = API_KEY_SOURCE.DOTENV
-                self.api_key = dotenv_token
-                return
+                return dotenv_token, API_KEY_SOURCE.DOTENV
+        return None
+
+    def load_api_key(self) -> None:
+        stored = self.stored(self.path_dotenv)
+        if stored is not None:
+            self.api_key, self.source = stored
+            return
 
         Console\
             .echo("API ключ ")\

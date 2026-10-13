@@ -11,12 +11,15 @@ class _Console:
         '_force_new_line',
         '_new_line',
         '_r',
+        'err',
         'verbosity'
     )
     _r: bool
     _new_line: bool
     _force_new_line: bool
     verbosity: int
+    # Routes output to stderr, keeping stdout for piped data
+    err: bool
 
     class _VariablesApply:
         __slots__ = ()
@@ -26,11 +29,11 @@ class _Console:
             if not Console.is_echo:
                 pass
             elif Console._force_new_line:
-                typer.echo()
+                typer.echo(err=Console.err)
             elif Console._r:
-                typer.echo('\r', nl=False)
+                typer.echo('\r', nl=False, err=Console.err)
             elif Console._new_line:
-                typer.echo()
+                typer.echo(err=Console.err)
 
         def __exit__(self, *_) -> None:
             Console._force_new_line = False
@@ -42,6 +45,7 @@ class _Console:
         self._r = False
         self._force_new_line = False
         self.verbosity = 0
+        self.err = False
 
     @property
     def is_progress(self) -> bool:
@@ -87,7 +91,7 @@ class _Console:
                     reverse=reverse,
                     strikethrough=strikethrough,
                     reset=reset
-                ), nl=False)
+                ), nl=False, err=self.err)
         return self
 
     def edit(self) -> t.Self:
@@ -133,7 +137,7 @@ class _Console:
                     value_proc=value_proc,
                     prompt_suffix=prompt_suffix,
                     show_default=show_default,
-                    err=err,
+                    err=err or self.err,
                     show_choices=show_choices
                 )
             else:
@@ -157,7 +161,7 @@ class _Console:
                     abort=abort,
                     prompt_suffix=prompt_suffix,
                     show_default=show_default,
-                    err=err
+                    err=err or self.err
                 )
             else:
                 value = True

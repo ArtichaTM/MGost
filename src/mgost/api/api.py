@@ -89,6 +89,12 @@ class ArtichaAPI:
             request=request
         )
 
+    def set_token(self, api_token: str) -> None:
+        """Replaces the token; used from the next client refresh"""
+        assert isinstance(api_token, str)
+        self._token = api_token
+        self._invalidate_cache()
+
     def _invalidate_cache(self) -> None:
         self._cache.clear()
 
@@ -334,3 +340,32 @@ class ArtichaAPI:
         resp.raise_for_status()
         self._invalidate_cache()
         return schemas.mgost.BuildResult(**resp.json())
+
+    async def fast_convert(
+        self,
+        source: bytes
+    ) -> schemas.mgost.FastConversionResult:
+        """Renders markdown into .docx without a project
+        :raises HTTPStatusError: 409 when a conversion is already running
+        """
+        assert isinstance(source, bytes)
+        # The cache key ignores the body: a retry must reach the server
+        self._invalidate_cache()
+        resp = await self.method(APIRequestInfo(
+            'POST', '/mgost/fast-convert',
+            content=source,
+            timeout=self.RENDER_TIMEOUT
+        ))
+        self._invalidate_cache()
+        return schemas.mgost.FastConversionResult(**resp.json())
+
+    async def fast_convert_output(self) -> bytes:
+        """Latest fast conversion result
+        :raises HTTPStatusError: 409 while the conversion is running
+        """
+        self._invalidate_cache()
+        resp = await self.method(APIRequestInfo(
+            'GET', '/mgost/fast-convert/output'
+        ))
+        self._invalidate_cache()
+        return resp.content

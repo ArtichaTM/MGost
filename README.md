@@ -63,6 +63,18 @@ $ mgost render
 ↓ output.docx ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 100% 0:00:00
 ```
 
+## Быстрая конвертация
+`mgost convert` конвертирует один markdown в `.docx` без проекта, синхронизации и `mgost init`. Локальные файлы (изображения и т.д.) при этом не загружаются. Результат занимает то же место, что и быстрая конвертация на сайте.
+
+```console
+$ mgost convert                    # main.md → main.docx
+$ mgost convert notes.md           # notes.md → notes.docx
+$ mgost convert notes.md -o out/report.docx
+$ cat notes.md | mgost convert - -o - > notes.docx
+```
+
+Токен берётся из `ARTICHAAPI_TOKEN` или `.mgost/.env`, иначе запрашивается. Введённый токен можно сохранить в `.mgost/.env` текущей папки. При чтении из stdin токен не запрашивается.
+
 ## Структура проекта
 ```
 src/mgost/
@@ -81,13 +93,14 @@ src/mgost/
 ├── cli/
 │   ├── app.py                # Создание typer.Typer приложения и обёртка main() с перехватом Ctrl+C
 │   ├── callback.py           # Глобальный callback CLI (флаг -v, инициализация логирования)
-│   ├── commands.py           # Определения команд CLI (version, token, init, sync, render)
+│   ├── commands.py           # Определения команд CLI (version, token, init, sync, render, convert)
 │   └── async_commands.py     # Асинхронные реализации команд CLI
 ├── mgost/
 │   ├── mgost.py              # Класс MGost — основной фасад: инициализация, синхронизация, рендер проекта
+│   ├── fast_convert.py       # Быстрая конвертация одного markdown без проекта (`mgost convert`)
 │   ├── sync.py               # Логика синхронизации файлов проекта с облаком
 │   ├── progress_utils.py     # Кастомные колонки rich.progress (например, отображение байт/штук)
-│   └── utils.py              # Вспомогательные функции (валидация токена и проекта)
+│   └── utils.py              # Вспомогательные функции (валидация токена и проекта, вывод логов рендера)
 └── settings/
     ├── settings.py           # Класс Settings — чтение токена/конфига из env, .env, команды
     └── logging.py            # Настройка логирования

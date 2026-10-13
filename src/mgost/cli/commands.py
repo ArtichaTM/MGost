@@ -51,3 +51,25 @@ def _(root_path: RootPath = Path('.')):
 )
 def _(root_path: RootPath = Path('.')):
     run(async_commands.render(root_path))
+
+
+@app.command(
+    "convert",
+    help=(
+        "Быстро конвертирует один markdown в .docx без проекта."
+        " Результат занимает то же место, что и быстрая конвертация на сайте"
+    )
+)
+def _(
+    source: Annotated[Path | None, typer.Argument(
+        help="Markdown файл или `-` для stdin. По умолчанию main.md",
+        show_default=False
+    )] = None,
+    output: Annotated[Path | None, typer.Option(
+        '--output', '-o',
+        help="Путь к .docx или `-` для stdout. По умолчанию SOURCE.docx",
+        show_default=False
+    )] = None
+):
+    if not run(async_commands.convert(source, output)):
+        raise typer.Exit(1)
