@@ -23,7 +23,7 @@
                 "-v",
                 "sync"
             ],
-            "cwd": "${workspaceFolder}/temp/remote_temp"
+            "cwd": "${workspaceFolder}/data/remote_temp"
         }
     ]
 }

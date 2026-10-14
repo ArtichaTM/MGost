@@ -33,13 +33,13 @@ def init_logging(verbosity: int = 0) -> None:
             >=2: DEBUG   (-vv)
     """
     level = VERBOSITY_LEVELS.get(verbosity, logging.DEBUG)
-    
+
     # Avoid adding duplicate handlers if called multiple times
     root = logging.getLogger()
     if root.handlers:
         for handler in root.handlers[:]:
             root.removeHandler(handler)
-    
+
     logging.basicConfig(
         level=level,
         format=_LOG_FORMAT,

@@ -1,0 +1,5 @@
+# LF everywhere, whatever core.autocrlf says locally.
+* text=auto eol=lf
+
+# A CR would reach the shell as part of the command.
+*.sh text eol=lf

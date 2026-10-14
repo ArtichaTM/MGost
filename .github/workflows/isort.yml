@@ -1,0 +1,19 @@
+name: isort
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  isort:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+      # Dev group only; --no-sync below keeps `uv run` from installing the project.
+      - name: Sync dev tools
+        run: uv sync --locked --only-dev
+      - name: Check import order
+        run: uv run --no-sync isort --check-only --diff .

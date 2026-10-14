@@ -1,6 +1,23 @@
+# Local hooks: versions come from uv.lock, the same ones CI and `make verify` use.
 repos:
   - repo: local
     hooks:
+      - id: block-commits-to-main
+        name: Block direct commits to main
+        entry: bash scripts/block-commits-to-main.sh
+        language: system
+        stages: [pre-commit]
+        pass_filenames: false
+        always_run: true
+
+      # Rewrites a stale uv.lock; the commit then fails until the new lock is staged.
+      - id: uv-lock
+        name: uv lock
+        entry: uv lock
+        language: system
+        files: ^(pyproject\.toml|uv\.lock)$
+        pass_filenames: false
+
       - id: ruff-check
         name: ruff check
         entry: uv run --locked ruff check --force-exclude
